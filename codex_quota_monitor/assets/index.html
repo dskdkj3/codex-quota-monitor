@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta http-equiv="refresh" content="__META_REFRESH__">
+    <title>CPA Pool Monitor</title>
+    <link rel="stylesheet" href="/monitor.css">
+  </head>
+  <body>
+    <main class="sheet">
+      <section class="hero">
+        <p class="hero-kicker">e-ink View</p>
+        <h1 class="hero-title">CPA Pool</h1>
+        <p class="hero-subtitle">A tabbed CLIProxyAPI dashboard tuned for glance checks on e-ink.</p>
+        <div class="pill-row">
+          <span class="pill" id="health-pill">Loading gateway</span>
+          <span class="pill" id="pool-pill">Loading pool</span>
+          <span class="pill" id="alerts-pill">Loading alerts</span>
+        </div>
+        <p class="hero-subline" id="hero-subline">Waiting for the first CPA snapshot.</p>
+      </section>
+
+      <section class="stack">
+        <section class="panel status-panel" id="status-panel">
+          <p class="eyebrow">Status</p>
+          <div class="status-main" id="source-text">Waiting for data</div>
+          <div class="status-sub" id="sampled-at">No sample yet</div>
+          <p class="status-copy" id="status-text">The dashboard will poll the local CPA management API automatically.</p>
+        </section>
+
+        <nav class="tab-bar" aria-label="Dashboard tabs">
+          <a class="tab" id="tab-button-pool" href="#pool" data-tab="pool">Pool</a>
+          <a class="tab" id="tab-button-traffic" href="#traffic" data-tab="traffic">Traffic</a>
+          <a class="tab" id="tab-button-alerts" href="#alerts" data-tab="alerts">Alerts</a>
+        </nav>
+
+        <section class="panel tab-panel" id="tab-panel-pool">
+          <p class="eyebrow">Pool</p>
+          <h2 class="tab-title" id="tab-title-pool">Loading</h2>
+          <p class="tab-summary" id="tab-summary-pool"></p>
+          <div class="stats-grid" id="tab-stats-pool"></div>
+          <div class="item-list" id="tab-items-pool"></div>
+          <p class="tab-footnote" id="tab-footnote-pool"></p>
+        </section>
+
+        <section class="panel tab-panel" id="tab-panel-traffic">
+          <p class="eyebrow">Traffic</p>
+          <h2 class="tab-title" id="tab-title-traffic">Loading</h2>
+          <p class="tab-summary" id="tab-summary-traffic"></p>
+          <div class="stats-grid" id="tab-stats-traffic"></div>
+          <div class="item-list" id="tab-items-traffic"></div>
+          <p class="tab-footnote" id="tab-footnote-traffic"></p>
+        </section>
+
+        <section class="panel tab-panel" id="tab-panel-alerts">
+          <p class="eyebrow">Alerts</p>
+          <h2 class="tab-title" id="tab-title-alerts">Loading</h2>
+          <p class="tab-summary" id="tab-summary-alerts"></p>
+          <div class="stats-grid" id="tab-stats-alerts"></div>
+          <div class="item-list" id="tab-items-alerts"></div>
+          <p class="tab-footnote" id="tab-footnote-alerts"></p>
+        </section>
+      </section>
+    </main>
+
+    <noscript>
+      <p>This dashboard needs JavaScript for tab switching and live refresh.</p>
+    </noscript>
+
+    <script>
+      window.CPA_MONITOR_BOOTSTRAP = {
+        initialSnapshot: __INITIAL_SNAPSHOT__,
+        refreshMs: __REFRESH_MS__
+      };
+    </script>
+    <script src="/monitor.js"></script>
+  </body>
+</html>
