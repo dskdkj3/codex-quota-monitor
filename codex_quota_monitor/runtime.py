@@ -8,6 +8,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
+from .quota import QuotaSampler
 from .snapshot import build_dashboard_snapshot, build_unavailable_snapshot
 from .util import compact_error, count_label, join_url, now_local, safe_int
 from .web import load_asset_payload, render_page
@@ -96,9 +97,10 @@ def refresh_alerts_for_stale_snapshot(snapshot):
 
 
 class CPAMonitor:
-    def __init__(self, management_base_url, gateway_health_url, refresh_seconds, logs_refresh_seconds, timeout_seconds):
+    def __init__(self, management_base_url, gateway_health_url, auth_dir, refresh_seconds, logs_refresh_seconds, timeout_seconds):
         self.management_base_url = management_base_url.rstrip("/")
         self.gateway_health_url = gateway_health_url
+        self.auth_dir = auth_dir or ""
         self.refresh_seconds = refresh_seconds
         self.logs_refresh_seconds = logs_refresh_seconds or max(refresh_seconds * 4, 60)
         self.timeout_seconds = timeout_seconds
@@ -107,6 +109,7 @@ class CPAMonitor:
         self._last_snapshot = None
         self._last_refresh_monotonic = 0.0
         self._endpoint_cache = {}
+        self._quota_sampler = QuotaSampler(self.auth_dir, refresh_seconds, timeout_seconds)
 
     def get_snapshot(self):
         with self._lock:
@@ -195,10 +198,13 @@ class CPAMonitor:
         if auth_files_stale or usage_stale:
             source = "partial"
 
+        quota_payload = self._quota_sampler.refresh((auth_files_payload or {}).get("files") or [], sampled_at)
+
         snapshot = build_dashboard_snapshot(
             health_payload=health_payload,
             auth_files_payload=auth_files_payload,
             usage_payload=usage_payload,
+            quota_payload=quota_payload,
             routing_payload=routing_payload,
             usage_stats_payload=usage_stats_payload,
             request_log_payload=request_log_payload,
@@ -208,9 +214,12 @@ class CPAMonitor:
             source=source,
         )
         self.logger.info(
-            "sample source=%s auth_files=%s total_requests=%s total_tokens=%s alerts=%s",
+            "sample source=%s auth_files=%s quota_status=%s quota_fresh=%s/%s total_requests=%s total_tokens=%s alerts=%s",
             snapshot["source"],
             len((auth_files_payload or {}).get("files") or []),
+            quota_payload["status"],
+            quota_payload["freshCount"],
+            quota_payload["eligibleCount"],
             snapshot["tabs"]["traffic"]["metrics"][0]["value"],
             safe_int((((usage_payload or {}).get("usage") or {}).get("total_tokens"))),
             snapshot["summary"]["alertsPill"],

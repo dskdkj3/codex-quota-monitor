@@ -5,6 +5,7 @@ import json
 import os
 import pathlib
 import sys
+import tempfile
 import threading
 import unittest
 import urllib.request
@@ -16,6 +17,96 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import codex_quota_monitor as MODULE
+
+
+class QuotaParsingTests(unittest.TestCase):
+    def test_parse_quota_usage_payload_maps_direct_windows(self):
+        parsed = MODULE.parse_quota_usage_payload(
+            {
+                "plan_type": "plus",
+                "rate_limit": {
+                    "primary_window": {
+                        "used_percent": 70,
+                        "reset_at": "2026-04-20T13:30:00+08:00",
+                        "limit_window_seconds": 18000,
+                    },
+                    "secondary_window": {
+                        "used_percent": 25,
+                        "reset_at": "2026-04-23T00:00:00+08:00",
+                        "limit_window_seconds": 604800,
+                    },
+                },
+            }
+        )
+
+        self.assertEqual(parsed["planType"], "plus")
+        self.assertEqual(parsed["windows"]["5h"]["percent"], 30)
+        self.assertEqual(parsed["windows"]["week"]["percent"], 75)
+
+
+class StubQuotaSampler(MODULE.QuotaSampler):
+    def __init__(self, auth_dir, payloads):
+        super().__init__(auth_dir=auth_dir, refresh_seconds=15, timeout_seconds=5)
+        self.payloads = list(payloads)
+        self.calls = []
+
+    def _fetch_usage_payload(self, access_token, account_id):
+        self.calls.append((access_token, account_id))
+        return self.payloads[len(self.calls) - 1]
+
+
+class QuotaSamplerTests(unittest.TestCase):
+    def test_refresh_rotates_one_account_per_tick(self):
+        with tempfile.TemporaryDirectory() as auth_dir:
+            path_a = pathlib.Path(auth_dir) / "acct-a.json"
+            path_b = pathlib.Path(auth_dir) / "acct-b.json"
+            path_a.write_text(json.dumps({"access_token": "token-a", "account_id": "account-a"}), encoding="utf-8")
+            path_b.write_text(json.dumps({"access_token": "token-b", "account_id": "account-b"}), encoding="utf-8")
+
+            sampler = StubQuotaSampler(
+                auth_dir,
+                [
+                    {
+                        "plan_type": "plus",
+                        "rate_limit": {
+                            "primary_window": {"used_percent": 40, "limit_window_seconds": 18000},
+                            "secondary_window": {"used_percent": 20, "limit_window_seconds": 604800},
+                        },
+                    },
+                    {
+                        "plan_type": "plus",
+                        "rate_limit": {
+                            "primary_window": {"used_percent": 60, "limit_window_seconds": 18000},
+                            "secondary_window": {"used_percent": 30, "limit_window_seconds": 604800},
+                        },
+                    },
+                ],
+            )
+
+            auth_files = [
+                {
+                    "auth_index": "acct-a",
+                    "provider": "codex",
+                    "path": str(path_a),
+                    "id_token": {"plan_type": "plus", "chatgpt_account_id": "account-a"},
+                },
+                {
+                    "auth_index": "acct-b",
+                    "provider": "codex",
+                    "path": str(path_b),
+                    "id_token": {"plan_type": "plus", "chatgpt_account_id": "account-b"},
+                },
+            ]
+
+            first = sampler.refresh(auth_files, dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone())
+            second = sampler.refresh(auth_files, dt.datetime(2026, 4, 20, 12, 30, 15, tzinfo=dt.timezone.utc).astimezone())
+
+            self.assertEqual(first["attemptedKey"], "acct-a")
+            self.assertEqual(second["attemptedKey"], "acct-b")
+            self.assertEqual(first["sampledCount"], 1)
+            self.assertEqual(second["sampledCount"], 2)
+            self.assertEqual(second["status"], "live")
+            self.assertEqual(sampler.calls, [("token-a", "account-a"), ("token-b", "account-b")])
 
 
 class DashboardSnapshotTests(unittest.TestCase):
@@ -104,6 +195,44 @@ class DashboardSnapshotTests(unittest.TestCase):
                     },
                 }
             },
+            quota_payload={
+                "status": "partial",
+                "eligibleCount": 3,
+                "sampledCount": 2,
+                "freshCount": 1,
+                "staleCount": 1,
+                "cycleSeconds": 45,
+                "completedCycle": False,
+                "degraded": False,
+                "attemptedKey": "acct-team",
+                "attemptError": None,
+                "samples": {
+                    "acct-plus-known": {
+                        "sampledAt": dt.datetime(2026, 4, 20, 12, 28, tzinfo=dt.timezone.utc).astimezone(),
+                        "planType": "plus",
+                        "windows": {
+                            "5h": {
+                                "percent": 30,
+                                "resetAt": dt.datetime(2026, 4, 20, 15, 30, tzinfo=dt.timezone.utc).astimezone(),
+                            },
+                            "week": {
+                                "percent": 80,
+                                "resetAt": dt.datetime(2026, 4, 22, 20, 0, tzinfo=dt.timezone.utc).astimezone(),
+                            },
+                        },
+                        "lastError": "usage query returned HTTP 401: token expired",
+                        "lastErrorAt": dt.datetime(2026, 4, 20, 12, 29, 30, tzinfo=dt.timezone.utc).astimezone(),
+                    },
+                    "acct-plus-limited": {},
+                    "acct-team": {
+                        "sampledAt": dt.datetime(2026, 4, 20, 12, 29, 55, tzinfo=dt.timezone.utc).astimezone(),
+                        "planType": "team",
+                        "windows": {},
+                        "lastError": None,
+                        "lastErrorAt": None,
+                    },
+                },
+            },
             routing_payload={
                 "routing": {
                     "strategy": "round-robin",
@@ -121,18 +250,22 @@ class DashboardSnapshotTests(unittest.TestCase):
 
         self.assertTrue(snapshot["available"])
         self.assertEqual(snapshot["source"], "partial")
-        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.3 Plus")
-        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.8 Plus")
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.3 Plus · 1 stale")
+        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.8 Plus · 1 stale")
         self.assertEqual(snapshot["summary"]["subline"], "Round Robin + Sticky · 4 req · 3.2K tok")
         self.assertEqual(snapshot["summary"]["alertsPill"], "2 alerts")
 
         pool_tab = snapshot["tabs"]["pool"]
         self.assertEqual(pool_tab["title"], "Pool Capacity")
         self.assertEqual(pool_tab["capacityWindows"][0]["knownUnitsText"], "0.3 Plus")
+        self.assertIn("Stale 1", pool_tab["capacityWindows"][0]["summary"])
         self.assertIn("Unclassified 1", pool_tab["capacityWindows"][0]["summary"])
         self.assertEqual(pool_tab["accounts"][0]["title"], "account-slot")
         self.assertEqual(pool_tab["accounts"][0]["windows"][0]["valueText"], "Unknown")
         self.assertIn("Resets", pool_tab["accounts"][0]["note"])
+        self.assertIn("direct Codex usage sampling", pool_tab["footnote"])
+        plus_known = next(account for account in pool_tab["accounts"] if account["title"] == "account-slot")
+        self.assertIn("stale", plus_known["windows"][0]["note"])
 
         traffic_tab = snapshot["tabs"]["traffic"]
         self.assertEqual(traffic_tab["metrics"][0]["value"], "4")
@@ -146,6 +279,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(alerts_tab["items"][0]["badge"], "Quota")
         self.assertEqual(alerts_tab["items"][1]["badge"], "Monitor")
         self.assertIn("config: timed out", snapshot["statusText"])
+        self.assertIn("direct Codex usage", snapshot["statusText"])
 
     def test_build_unavailable_snapshot_has_monitor_alert(self):
         snapshot = MODULE.build_unavailable_snapshot("auth-files: connection refused")

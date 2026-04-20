@@ -1,6 +1,7 @@
 import datetime as dt
 import json
 
+from .quota import is_quota_sample_stale
 from .util import (
     EMPTY_TAB,
     activity_text,
@@ -389,7 +390,121 @@ def extract_reset_time(auth_file, parsed_message, reference_time):
     return None
 
 
-def build_window_state(window_definition, auth_file, parsed_message, *, plus_plan, generic_quota, reference_time):
+def quota_plan_label(auth_file, quota_sample):
+    if isinstance(quota_sample, dict):
+        sampled_plan_type = str(quota_sample.get("planType") or "").strip()
+        if sampled_plan_type:
+            return titleize_slug(sampled_plan_type, fallback="Unknown")
+    return auth_plan(auth_file)
+
+
+def quota_refresh_seconds(quota_payload):
+    eligible_count = safe_int((quota_payload or {}).get("eligibleCount"))
+    cycle_seconds = safe_int((quota_payload or {}).get("cycleSeconds"))
+    if eligible_count <= 0 or cycle_seconds <= 0:
+        return 0
+    return max(1, int(round(float(cycle_seconds) / float(eligible_count))))
+
+
+def quota_status_text(quota_payload):
+    eligible_count = safe_int((quota_payload or {}).get("eligibleCount"))
+    if eligible_count <= 0:
+        return ""
+
+    refresh_seconds = quota_refresh_seconds(quota_payload)
+    intro = f"Quota windows come from direct Codex usage and refresh one account every {refresh_seconds}s."
+    status = str((quota_payload or {}).get("status") or "").strip()
+    attempt_error = str((quota_payload or {}).get("attemptError") or "").strip()
+
+    if status == "warming":
+        text = intro + " The sampler is still warming up."
+    elif status == "partial":
+        text = intro + " Some cards may still show cached or not-yet-sampled values."
+    elif status == "degraded":
+        text = intro + " Recent direct refreshes failed, so cached or unknown quota values may remain visible."
+    else:
+        text = intro
+
+    if attempt_error and status in {"warming", "degraded"}:
+        text += " Last error: " + attempt_error
+    return trim_text(text, limit=220)
+
+
+def quota_status_source_text(quota_payload):
+    eligible_count = safe_int((quota_payload or {}).get("eligibleCount"))
+    if eligible_count <= 0:
+        return ""
+
+    status = str((quota_payload or {}).get("status") or "").strip()
+    if status == "degraded":
+        return "Live via CLIProxyAPI with cached direct quota"
+    return "Live via CLIProxyAPI + direct Codex quota"
+
+
+def quota_account_note(quota_sample, reference_time, cycle_seconds):
+    if not isinstance(quota_sample, dict):
+        return ""
+
+    sampled_at = quota_sample.get("sampledAt")
+    last_error = str(quota_sample.get("lastError") or "").strip()
+    last_error_at = quota_sample.get("lastErrorAt")
+    if sampled_at is None and not last_error:
+        return ""
+
+    if sampled_at is None:
+        if last_error_at is not None:
+            return trim_text(
+                f"First direct quota sample failed {display_compact_timestamp(last_error_at, reference=reference_time)}: {last_error}",
+                limit=180,
+            )
+        return trim_text("Direct quota sampling has not succeeded yet.", limit=180)
+
+    note = f"Direct quota sample {display_compact_timestamp(sampled_at, reference=reference_time)}"
+    if is_quota_sample_stale(quota_sample, reference_time, cycle_seconds):
+        note += " is stale"
+    if last_error and last_error_at is not None and last_error_at >= sampled_at:
+        note += f"; refresh failed {display_compact_timestamp(last_error_at, reference=reference_time)}: {last_error}"
+    return trim_text(note, limit=180)
+
+
+def build_direct_window_state(window_definition, quota_sample, reference_time, cycle_seconds):
+    if not isinstance(quota_sample, dict):
+        return None
+
+    window = ((quota_sample.get("windows") or {}).get(window_definition["id"])) or None
+    if not isinstance(window, dict):
+        return None
+
+    percent = max(0, min(100, safe_int(window.get("percent"))))
+    sampled_at = quota_sample.get("sampledAt")
+    reset_at = window.get("resetAt")
+    stale = is_quota_sample_stale(quota_sample, reference_time, cycle_seconds)
+    last_error = str(quota_sample.get("lastError") or "").strip()
+    last_error_at = quota_sample.get("lastErrorAt")
+
+    note_bits = []
+    if reset_at is not None:
+        note_bits.append(f"Resets {display_compact_timestamp(reset_at, reference=reference_time)}")
+    if sampled_at is not None:
+        note_bits.append(f"Direct {display_compact_timestamp(sampled_at, reference=reference_time)}")
+    if stale:
+        note_bits.append("stale")
+    if last_error and last_error_at is not None and (sampled_at is None or last_error_at >= sampled_at):
+        note_bits.append(f"retry failed {display_compact_timestamp(last_error_at, reference=reference_time)}")
+
+    return {
+        "id": window_definition["id"],
+        "label": window_definition["label"],
+        "state": "known" if percent > 0 else "exhausted",
+        "percent": percent,
+        "valueText": f"{percent}%",
+        "note": " · ".join(note_bits),
+        "fillPercent": percent,
+        "stale": stale,
+    }
+
+
+def build_window_state(window_definition, auth_file, parsed_message, *, plus_plan, generic_quota, quota_sample, cycle_seconds, reference_time):
     label = window_definition["label"]
     if not plus_plan:
         return {
@@ -401,6 +516,10 @@ def build_window_state(window_definition, auth_file, parsed_message, *, plus_pla
             "note": "Not tracked for this plan.",
             "fillPercent": 0,
         }
+
+    direct_state = build_direct_window_state(window_definition, quota_sample, reference_time, cycle_seconds)
+    if direct_state is not None:
+        return direct_state
 
     signal = find_window_signal(parsed_message, window_definition["aliases"])
     if signal is None:
@@ -422,6 +541,16 @@ def build_window_state(window_definition, auth_file, parsed_message, *, plus_pla
         }
 
     note = "Unknown"
+    if quota_sample == {}:
+        note = "Waiting for first direct sample."
+    elif isinstance(quota_sample, dict) and quota_sample.get("sampledAt") is not None:
+        note = "Direct sample did not include this window."
+    elif isinstance(quota_sample, dict):
+        last_error = str(quota_sample.get("lastError") or "").strip()
+        last_error_at = quota_sample.get("lastErrorAt")
+        note = "Waiting for first direct sample."
+        if last_error and last_error_at is not None:
+            note = f"Direct sample failed {display_compact_timestamp(last_error_at, reference=reference_time)}."
     if generic_quota:
         note = "Quota hit not classified as 5h or weekly."
     return {
@@ -435,10 +564,10 @@ def build_window_state(window_definition, auth_file, parsed_message, *, plus_pla
     }
 
 
-def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time, usage_totals):
+def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time, usage_totals, quota_sample, quota_cycle_seconds):
     key = auth_key(auth_file)
     label = auth_label(auth_file, usage_entry)
-    plan_label = auth_plan(auth_file)
+    plan_label = quota_plan_label(auth_file, quota_sample)
     plan_kind = normalize_key(plan_label)
     plus_plan = is_plus_plan(plan_kind)
     raw_message = str(auth_file.get("status_message") or "").strip()
@@ -490,11 +619,6 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
         else:
             message_text = reset_text
 
-    summary_bits = [status_label]
-    if duplicate_labels.get(label, 0) > 1:
-        summary_bits.append(f"slot {short_slot(key)}")
-    summary = " · ".join(summary_bits)
-
     meta_bits = []
     if recent_timestamp is not None:
         meta_bits.append(activity_text(recent_timestamp))
@@ -511,13 +635,28 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
             parsed_message,
             plus_plan=plus_plan,
             generic_quota=generic_quota,
+            quota_sample=quota_sample,
+            cycle_seconds=quota_cycle_seconds,
             reference_time=reference_time,
         )
         for definition in WINDOW_DEFINITIONS
     ]
 
+    if not message_text:
+        message_text = quota_account_note(quota_sample, reference_time, quota_cycle_seconds)
+
     remaining_values = [window["percent"] for window in windows if isinstance(window["percent"], int)]
     remaining_floor = min(remaining_values) if remaining_values else 101
+    quota_window_exhausted = any(window["state"] == "exhausted" for window in windows)
+    quota_issue = generic_quota or quota_window_exhausted
+    if quota_issue:
+        tone = "bad"
+        status_label = "Quota hit"
+
+    summary_bits = [status_label]
+    if duplicate_labels.get(label, 0) > 1:
+        summary_bits.append(f"slot {short_slot(key)}")
+    summary = " · ".join(summary_bits)
 
     return {
         "key": key,
@@ -525,7 +664,7 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
         "badge": plan_label,
         "planKind": plan_kind,
         "tone": tone,
-        "issueKind": issue_kind,
+        "issueKind": "quota" if quota_issue else issue_kind,
         "statusLabel": status_label,
         "genericQuotaExceeded": generic_quota,
         "summary": summary,
@@ -539,8 +678,8 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
         "updatedAt": updated_at,
         "windows": windows,
         "sortKey": (
-            0 if issue_kind else 1 if plus_plan and remaining_floor <= 100 else 2 if plus_plan else 3,
-            0 if issue_kind == "quota" else 1 if issue_kind else 2,
+            0 if (quota_issue or issue_kind) else 1 if plus_plan and remaining_floor <= 100 else 2 if plus_plan else 3,
+            0 if quota_issue else 1 if issue_kind else 2,
             remaining_floor,
             -share_percent,
             -(recent_timestamp.timestamp() if recent_timestamp else 0),
@@ -600,16 +739,26 @@ def build_runtime_context(key, usage_entry, reference_time, usage_totals):
     }
 
 
-def build_account_contexts(auth_files, usage_index, reference_time):
+def build_account_contexts(auth_files, usage_index, reference_time, quota_payload):
     duplicate_labels = build_duplicate_label_counts(auth_files, usage_index)
     contexts = []
     seen_keys = set()
     plan_counts = {"plus": 0, "team": 0, "other": 0}
+    quota_samples = (quota_payload or {}).get("samples") or {}
+    quota_cycle_seconds = safe_int((quota_payload or {}).get("cycleSeconds")) or 0
 
     for auth_file in auth_files:
         key = auth_key(auth_file)
         usage_entry = usage_index["accounts"].get(key)
-        context = build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time, usage_index["totals"])
+        context = build_auth_context(
+            auth_file,
+            usage_entry,
+            duplicate_labels,
+            reference_time,
+            usage_index["totals"],
+            quota_samples.get(key),
+            quota_cycle_seconds,
+        )
         contexts.append(context)
         seen_keys.add(key)
 
@@ -641,6 +790,7 @@ def build_capacity_windows(contexts):
         unknown_count = 0
         exhausted_count = 0
         unclassified_count = 0
+        stale_count = 0
 
         for context in plus_contexts:
             window = next(item for item in context["windows"] if item["id"] == definition["id"])
@@ -648,6 +798,8 @@ def build_capacity_windows(contexts):
                 known_units += float(window["percent"]) / 100.0
                 if window["percent"] <= 0:
                     exhausted_count += 1
+                if window.get("stale"):
+                    stale_count += 1
                 continue
             if context["genericQuotaExceeded"]:
                 unclassified_count += 1
@@ -664,8 +816,16 @@ def build_capacity_windows(contexts):
             summary_bits.append(f"Exhausted {exhausted_count}")
         if unclassified_count:
             summary_bits.append(f"Unclassified {unclassified_count}")
+        if stale_count:
+            summary_bits.append(f"Stale {stale_count}")
         if not summary_bits:
             summary_bits = ["No Plus accounts"]
+
+        pill_suffix = ""
+        if unknown_count > 0:
+            pill_suffix = f" · {unknown_count} unknown"
+        elif stale_count > 0:
+            pill_suffix = f" · {stale_count} stale"
 
         items.append(
             {
@@ -677,14 +837,11 @@ def build_capacity_windows(contexts):
                 "unknownCount": unknown_count,
                 "exhaustedCount": exhausted_count,
                 "unclassifiedCount": unclassified_count,
+                "staleCount": stale_count,
                 "knownBarPercent": known_bar_percent,
                 "unknownBarPercent": unknown_bar_percent,
                 "summary": " · ".join(summary_bits) if plus_total > 0 else "No Plus accounts in the pool.",
-                "pillText": (
-                    f"{definition['label']} {known_units_text} · {unknown_count} unknown"
-                    if unknown_count > 0
-                    else f"{definition['label']} {known_units_text}"
-                ),
+                "pillText": f"{definition['label']} {known_units_text}{pill_suffix}",
             }
         )
 
@@ -755,7 +912,7 @@ def build_auth_alert_items(contexts, reference_time):
     return items
 
 
-def build_monitor_alert_items(*, source, source_text, gateway_ok, endpoint_errors):
+def build_monitor_alert_items(*, source, source_text, gateway_ok, endpoint_errors, quota_payload):
     items = []
     joined_errors = "; ".join(endpoint_errors or [])
     if source in {"partial", "stale"} or endpoint_errors:
@@ -771,6 +928,25 @@ def build_monitor_alert_items(*, source, source_text, gateway_ok, endpoint_error
                 "kind": "monitor",
                 "tone": "bad" if source == "stale" else "warn",
                 "title": "CPA snapshot degraded",
+                "badge": "Monitor",
+                "meta": source_text,
+                "detail": trim_text(detail, limit=180),
+            }
+        )
+
+    if (quota_payload or {}).get("degraded"):
+        detail = (
+            "Quota windows come from direct Codex usage. Recent direct refreshes failed, "
+            "so the page is using cached or unknown quota values."
+        )
+        attempt_error = str((quota_payload or {}).get("attemptError") or "").strip()
+        if attempt_error:
+            detail += " " + attempt_error
+        items.append(
+            {
+                "kind": "monitor",
+                "tone": "warn",
+                "title": "Direct quota source degraded",
                 "badge": "Monitor",
                 "meta": source_text,
                 "detail": trim_text(detail, limit=180),
@@ -833,6 +1009,7 @@ def build_dashboard_snapshot(
     health_payload,
     auth_files_payload,
     usage_payload,
+    quota_payload,
     routing_payload,
     usage_stats_payload,
     request_log_payload,
@@ -843,7 +1020,7 @@ def build_dashboard_snapshot(
 ):
     auth_files = list((auth_files_payload or {}).get("files") or [])
     usage_index = build_usage_index(usage_payload)
-    contexts, plan_counts = build_account_contexts(auth_files, usage_index, sampled_at)
+    contexts, plan_counts = build_account_contexts(auth_files, usage_index, sampled_at, quota_payload)
     pool_accounts = build_pool_accounts(contexts)
     capacity_windows, plus_total = build_capacity_windows(contexts)
     traffic_items = build_traffic_distribution(contexts)
@@ -858,6 +1035,8 @@ def build_dashboard_snapshot(
     usage_stats_enabled = bool((usage_stats_payload or {}).get("usage-statistics-enabled"))
     routing = routing_state(routing_payload)
     auth_alert_items = build_auth_alert_items(contexts, sampled_at)
+    quota_status = quota_status_text(quota_payload)
+    quota_source = quota_status_source_text(quota_payload)
 
     if source == "stale":
         source_text = "Cached CPA snapshot"
@@ -866,7 +1045,7 @@ def build_dashboard_snapshot(
         source_text = "Live CPA snapshot with cached fallbacks"
         status_text = "Some CPA endpoints failed during refresh, so the page reused the latest good payload where possible."
     elif gateway_ok:
-        source_text = "Live via CLIProxyAPI management API"
+        source_text = quota_source or "Live via CLIProxyAPI management API"
         status_text = "Live CPA pool data from the local gateway."
     else:
         source_text = "Management API reachable, gateway health not ok"
@@ -876,12 +1055,15 @@ def build_dashboard_snapshot(
         status_text += " " + "; ".join(endpoint_errors)
     if not usage_stats_enabled:
         status_text += " Usage statistics are disabled, so traffic numbers may lag or stay empty."
+    if quota_status:
+        status_text += " " + quota_status
 
     monitor_alert_items = build_monitor_alert_items(
         source=source,
         source_text=source_text,
         gateway_ok=gateway_ok,
         endpoint_errors=endpoint_errors,
+        quota_payload=quota_payload,
     )
     alerts = build_alert_section(auth_alert_items + monitor_alert_items)
 
@@ -917,7 +1099,11 @@ def build_dashboard_snapshot(
                 ],
                 "capacityWindows": capacity_windows,
                 "accounts": pool_accounts,
-                "footnote": "Only explicit CPA quota signals count toward 5h / weekly remaining. Unknown means the current management payload does not expose that window.",
+                "footnote": (
+                    "5h / weekly windows come from direct Codex usage sampling, one account every "
+                    f"{quota_refresh_seconds(quota_payload) or 15}s. CLIProxyAPI still supplies pool membership and "
+                    "traffic. Unknown means there is no successful direct sample yet; stale cards keep the last known sample."
+                ),
             },
             "traffic": {
                 "title": "Traffic Snapshot",

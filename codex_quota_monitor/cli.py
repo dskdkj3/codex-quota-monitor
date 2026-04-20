@@ -38,6 +38,10 @@ def parse_args(argv=None):
         default=os.environ.get("CODEX_MONITOR_GATEWAY_HEALTH_URL", "http://127.0.0.1:8317/healthz"),
     )
     parser.add_argument(
+        "--auth-dir",
+        default=os.environ.get("CODEX_MONITOR_AUTH_DIR", ""),
+    )
+    parser.add_argument(
         "--log-level",
         default=os.environ.get("CODEX_MONITOR_LOG_LEVEL", "INFO"),
     )
@@ -54,6 +58,7 @@ def main(argv=None):
     monitor = CPAMonitor(
         management_base_url=args.management_base_url,
         gateway_health_url=args.gateway_health_url,
+        auth_dir=args.auth_dir,
         refresh_seconds=args.refresh_seconds,
         logs_refresh_seconds=args.logs_refresh_seconds,
         timeout_seconds=args.timeout_seconds,
@@ -62,11 +67,12 @@ def main(argv=None):
     MonitorRequestHandler.monitor = monitor
     server = ThreadingHTTPServer((args.host, args.port), MonitorRequestHandler)
     logging.getLogger("codex-quota-monitor").info(
-        "listening on http://%s:%s using management_base_url=%s gateway_health_url=%s",
+        "listening on http://%s:%s using management_base_url=%s gateway_health_url=%s auth_dir=%s",
         args.host,
         args.port,
         args.management_base_url,
         args.gateway_health_url,
+        args.auth_dir or "(disabled)",
     )
     try:
         server.serve_forever()
