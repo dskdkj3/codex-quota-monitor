@@ -94,6 +94,11 @@ def format_share_percent(metric_value, total_value):
     return max(0, min(100, share))
 
 
+def format_fractional_count(value):
+    number = float(value or 0.0)
+    return f"{number:.1f}"
+
+
 def count_label(value, noun):
     number = safe_int(value)
     suffix = noun if number == 1 else noun + "s"
@@ -112,6 +117,10 @@ def trim_text(value, limit=180):
     if len(text) <= limit:
         return text
     return text[: limit - 3] + "..."
+
+
+def normalize_key(value):
+    return "".join(ch for ch in str(value or "").lower() if ch.isalnum())
 
 
 def join_url(base_url, path):

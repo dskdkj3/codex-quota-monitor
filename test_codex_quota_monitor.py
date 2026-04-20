@@ -19,116 +19,156 @@ import codex_quota_monitor as MODULE
 
 
 class DashboardSnapshotTests(unittest.TestCase):
-    def test_build_dashboard_snapshot_prefers_problem_accounts_and_filters_logs(self):
-        sampled_at = dt.datetime(2026, 4, 20, 11, 10, tzinfo=dt.timezone.utc).astimezone()
+    def test_build_dashboard_snapshot_exposes_capacity_windows_and_hard_alerts(self):
+        sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
         snapshot = MODULE.build_dashboard_snapshot(
             health_payload={"status": "ok"},
             auth_files_payload={
                 "files": [
                     {
-                        "auth_index": "acct-good",
+                        "auth_index": "acct-plus-known",
                         "label": "account-slot",
                         "status": "active",
-                        "updated_at": "2026-04-20T11:00:00+08:00",
+                        "updated_at": "2026-04-20T12:20:00+08:00",
+                        "id_token": {"plan_type": "plus"},
+                        "quota_windows": {
+                            "5h": {"remaining_percent": 30},
+                            "weekly": {"remaining_percent": 80},
+                        },
+                    },
+                    {
+                        "auth_index": "acct-plus-limited",
+                        "label": "account-slot",
+                        "status": "error",
+                        "unavailable": True,
+                        "next_retry_after": "2026-04-20T13:40:00+08:00",
+                        "status_message": (
+                            '{"error":{"type":"usage_limit_reached","message":"The usage limit has been reached",'
+                            '"resets_in_seconds":4200}}'
+                        ),
+                        "updated_at": "2026-04-20T12:18:00+08:00",
                         "id_token": {"plan_type": "plus"},
                     },
                     {
-                        "auth_index": "acct-bad",
+                        "auth_index": "acct-team",
                         "label": "account-slot",
                         "status": "active",
-                        "unavailable": True,
-                        "status_message": "OAuth refresh failed",
-                        "updated_at": "2026-04-20T10:59:00+08:00",
+                        "updated_at": "2026-04-20T12:25:00+08:00",
                         "id_token": {"plan_type": "team"},
                     },
                 ]
             },
             usage_payload={
                 "usage": {
-                    "total_requests": 3,
-                    "success_count": 2,
+                    "total_requests": 4,
+                    "success_count": 3,
                     "failure_count": 1,
-                    "total_tokens": 3000,
+                    "total_tokens": 3200,
                     "apis": {
                         "sk-dummy": {
                             "models": {
                                 "gpt-5.4": {
                                     "details": [
                                         {
-                                            "timestamp": "2026-04-20T11:05:00+08:00",
+                                            "timestamp": "2026-04-20T12:21:00+08:00",
                                             "source": "account-slot",
-                                            "auth_index": "acct-good",
-                                            "tokens": {"total_tokens": 1800},
+                                            "auth_index": "acct-plus-known",
+                                            "tokens": {"total_tokens": 1600},
                                             "failed": False,
                                         },
                                         {
-                                            "timestamp": "2026-04-20T11:06:00+08:00",
+                                            "timestamp": "2026-04-20T12:22:00+08:00",
                                             "source": "account-slot",
-                                            "auth_index": "acct-bad",
-                                            "tokens": {"total_tokens": 1200},
-                                            "failed": False,
-                                        },
-                                        {
-                                            "timestamp": "2026-04-20T11:07:00+08:00",
-                                            "source": "account-slot",
-                                            "auth_index": "acct-bad",
-                                            "tokens": {"total_tokens": 0},
+                                            "auth_index": "acct-plus-limited",
+                                            "tokens": {"total_tokens": 800},
                                             "failed": True,
+                                        },
+                                        {
+                                            "timestamp": "2026-04-20T12:23:00+08:00",
+                                            "source": "account-slot",
+                                            "auth_index": "acct-team",
+                                            "tokens": {"total_tokens": 400},
+                                            "failed": False,
+                                        },
+                                        {
+                                            "timestamp": "2026-04-20T12:24:00+08:00",
+                                            "source": "account-slot",
+                                            "auth_index": "acct-plus-known",
+                                            "tokens": {"total_tokens": 400},
+                                            "failed": False,
                                         },
                                     ]
                                 }
                             }
                         }
                     },
-                },
-                "requests_by_hour": {"11": 3},
+                }
             },
-            routing_payload={"strategy": "round-robin"},
+            routing_payload={
+                "routing": {
+                    "strategy": "round-robin",
+                    "session-affinity": True,
+                    "session-affinity-ttl": "1h",
+                }
+            },
             usage_stats_payload={"usage-statistics-enabled": True},
             request_log_payload={"request-log": True},
-            logs_payload={
-                "lines": [
-                    '[2026-04-20 11:00:00] [--------] [warn ] [gin_logger.go:91] 404 | 0s | 127.0.0.1 | GET "/metrics"',
-                    "[2026-04-20 11:08:00] [--------] [error] [config_reload.go:86] failed to reload config",
-                ]
-            },
+            logs_payload={"lines": []},
             sampled_at=sampled_at,
-            endpoint_errors=["logs: timed out"],
+            endpoint_errors=["config: timed out"],
             source="partial",
         )
 
         self.assertTrue(snapshot["available"])
         self.assertEqual(snapshot["source"], "partial")
-        self.assertEqual(snapshot["summary"]["alertsPill"], "3 alerts")
-        self.assertEqual(snapshot["tabs"]["pool"]["items"][0]["title"], "account-slot")
-        self.assertIn("1 fail", snapshot["tabs"]["pool"]["items"][0]["detail"])
-        self.assertEqual(snapshot["tabs"]["traffic"]["stats"][0]["value"], "3")
-        self.assertEqual(snapshot["tabs"]["traffic"]["stats"][1]["value"], "67%")
-        self.assertEqual(snapshot["tabs"]["alerts"]["stats"][0]["value"], "1")
-        self.assertEqual(snapshot["tabs"]["alerts"]["stats"][1]["value"], "1")
-        self.assertEqual(snapshot["tabs"]["alerts"]["stats"][2]["value"], "1")
-        self.assertEqual(snapshot["tabs"]["alerts"]["items"][0]["badge"], "Auth")
-        self.assertEqual(snapshot["tabs"]["alerts"]["items"][1]["badge"], "Request")
-        self.assertEqual(snapshot["tabs"]["alerts"]["items"][2]["badge"], "Log")
-        self.assertIn("logs: timed out", snapshot["statusText"])
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.3 Plus")
+        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.8 Plus")
+        self.assertEqual(snapshot["summary"]["subline"], "Round Robin + Sticky · 4 req · 3.2K tok")
+        self.assertEqual(snapshot["summary"]["alertsPill"], "2 alerts")
 
-    def test_build_unavailable_snapshot_has_expected_placeholders(self):
+        pool_tab = snapshot["tabs"]["pool"]
+        self.assertEqual(pool_tab["title"], "Pool Capacity")
+        self.assertEqual(pool_tab["capacityWindows"][0]["knownUnitsText"], "0.3 Plus")
+        self.assertIn("Unclassified 1", pool_tab["capacityWindows"][0]["summary"])
+        self.assertEqual(pool_tab["accounts"][0]["title"], "account-slot")
+        self.assertEqual(pool_tab["accounts"][0]["windows"][0]["valueText"], "Unknown")
+        self.assertIn("Resets", pool_tab["accounts"][0]["note"])
+
+        traffic_tab = snapshot["tabs"]["traffic"]
+        self.assertEqual(traffic_tab["metrics"][0]["value"], "4")
+        self.assertEqual(traffic_tab["metrics"][1]["value"], "75%")
+        self.assertEqual(traffic_tab["metrics"][3]["value"], "Round Robin + Sticky")
+
+        alerts_tab = snapshot["tabs"]["alerts"]
+        self.assertEqual(alerts_tab["metrics"][0]["value"], "0")
+        self.assertEqual(alerts_tab["metrics"][1]["value"], "1")
+        self.assertEqual(alerts_tab["metrics"][2]["value"], "1")
+        self.assertEqual(alerts_tab["items"][0]["badge"], "Quota")
+        self.assertEqual(alerts_tab["items"][1]["badge"], "Monitor")
+        self.assertIn("config: timed out", snapshot["statusText"])
+
+    def test_build_unavailable_snapshot_has_monitor_alert(self):
         snapshot = MODULE.build_unavailable_snapshot("auth-files: connection refused")
 
         self.assertFalse(snapshot["available"])
         self.assertEqual(snapshot["source"], "unavailable")
         self.assertEqual(snapshot["summary"]["poolPill"], "Pool unavailable")
-        self.assertEqual(snapshot["tabs"]["pool"]["title"], "Pool Health")
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h unknown")
+        self.assertEqual(snapshot["tabs"]["pool"]["title"], "Pool Capacity")
+        self.assertEqual(snapshot["tabs"]["alerts"]["items"][0]["badge"], "Monitor")
         self.assertIn("connection refused", snapshot["statusText"])
 
 
 class PageRenderingTests(unittest.TestCase):
-    def test_render_page_references_static_assets_and_tabs(self):
+    def test_render_page_references_specialized_pool_layout(self):
         page = MODULE.render_page(MODULE.build_unavailable_snapshot("usage: timed out"), refresh_seconds=15)
 
         self.assertIn('href="/monitor.css"', page)
         self.assertIn('src="/monitor.js"', page)
         self.assertIn("CPA_MONITOR_BOOTSTRAP", page)
+        self.assertIn('id="five-hour-pill"', page)
+        self.assertIn('id="pool-capacity"', page)
+        self.assertIn('id="pool-accounts"', page)
         self.assertIn(">Pool<", page)
         self.assertIn(">Traffic<", page)
         self.assertIn(">Alerts<", page)
@@ -169,6 +209,7 @@ class HandlerTests(unittest.TestCase):
             payload = json.loads(response.read().decode("utf-8"))
             self.assertEqual(payload["source"], "unavailable")
             self.assertEqual(payload["summary"]["poolPill"], "Pool unavailable")
+            self.assertEqual(payload["tabs"]["alerts"]["items"][0]["badge"], "Monitor")
 
         with urllib.request.urlopen(self.base_url + "/", timeout=5) as response:
             self.assertEqual(response.status, 200)
@@ -176,19 +217,21 @@ class HandlerTests(unittest.TestCase):
             page = response.read().decode("utf-8")
             self.assertIn('href="/monitor.css"', page)
             self.assertIn('src="/monitor.js"', page)
-            self.assertIn("Pool", page)
+            self.assertIn("five-hour-pill", page)
 
         with urllib.request.urlopen(self.base_url + "/monitor.css", timeout=5) as response:
             self.assertEqual(response.status, 200)
             self.assertEqual(response.headers.get_content_type(), "text/css")
             stylesheet = response.read().decode("utf-8")
-            self.assertIn(".tab-panel", stylesheet)
+            self.assertIn(".capacity-grid", stylesheet)
+            self.assertIn(".account-grid", stylesheet)
 
         with urllib.request.urlopen(self.base_url + "/monitor.js", timeout=5) as response:
             self.assertEqual(response.status, 200)
             self.assertEqual(response.headers.get_content_type(), "application/javascript")
             script = response.read().decode("utf-8")
-            self.assertIn("renderSnapshot", script)
+            self.assertIn("renderPoolTab", script)
+            self.assertIn("renderCapacityCards", script)
 
 
 if __name__ == "__main__":

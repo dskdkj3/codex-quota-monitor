@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
 from .snapshot import build_dashboard_snapshot, build_unavailable_snapshot
-from .util import compact_error, join_url, now_local, safe_int
+from .util import compact_error, count_label, join_url, now_local, safe_int
 from .web import load_asset_payload, render_page
 
 
@@ -50,6 +50,49 @@ def html_response(handler, status_code, payload):
 def asset_response(handler, asset_name):
     payload, content_type = load_asset_payload(asset_name)
     bytes_response(handler, HTTPStatus.OK, payload, content_type=content_type)
+
+
+def refresh_alerts_for_stale_snapshot(snapshot):
+    alerts_tab = ((snapshot or {}).get("tabs") or {}).get("alerts") or {}
+    existing_items = [
+        item
+        for item in (alerts_tab.get("items") or [])
+        if item.get("kind") not in {"clean", "monitor"}
+    ]
+    existing_items.insert(
+        0,
+        {
+            "kind": "monitor",
+            "tone": "bad",
+            "title": "CPA snapshot degraded",
+            "badge": "Monitor",
+            "meta": snapshot.get("sourceText") or "Cached CPA snapshot",
+            "detail": snapshot.get("statusText") or "Fresh CPA sampling failed.",
+        },
+    )
+
+    counts = {"auth": 0, "quota": 0, "monitor": 0}
+    for item in existing_items:
+        kind = item.get("kind")
+        if kind in counts:
+            counts[kind] += 1
+    alert_count = sum(counts.values())
+
+    alerts_tab["summary"] = count_label(alert_count, "alert")
+    alerts_tab["metrics"] = [
+        {"label": "Auth", "value": str(counts["auth"]), "detail": "disabled / unavailable / missing auth-file"},
+        {"label": "Quota", "value": str(counts["quota"]), "detail": "explicit quota exhaustion"},
+        {"label": "Monitor", "value": str(counts["monitor"]), "detail": "snapshot or gateway issues"},
+        {"label": "Total", "value": str(alert_count), "detail": "items requiring attention"},
+    ]
+    alerts_tab["items"] = existing_items
+    alerts_tab["footnote"] = (
+        "Alerts are intentionally narrow: only hard auth failures, explicit quota exhaustion, "
+        "and monitor data-source problems remain here."
+    )
+    snapshot["tabs"]["alerts"] = alerts_tab
+    snapshot["summary"]["alertsPill"] = count_label(alert_count, "alert")
+    return snapshot
 
 
 class CPAMonitor:
@@ -108,10 +151,10 @@ class CPAMonitor:
             source = "partial"
 
         routing_payload, _, _, routing_error = self._load_json(
-            "routing-strategy",
-            join_url(self.management_base_url, "/v0/management/routing/strategy"),
+            "config",
+            join_url(self.management_base_url, "/v0/management/config"),
             ttl_seconds=self.refresh_seconds,
-            default_payload={"strategy": "unknown"},
+            default_payload={"routing": {"strategy": "unknown", "session-affinity": False}},
         )
         if routing_error:
             endpoint_errors.append("routing: " + routing_error)
@@ -127,25 +170,8 @@ class CPAMonitor:
             endpoint_errors.append("usage-stats: " + usage_stats_error)
             source = "partial"
 
-        request_log_payload, _, _, request_log_error = self._load_json(
-            "request-log",
-            join_url(self.management_base_url, "/v0/management/request-log"),
-            ttl_seconds=self.refresh_seconds,
-            default_payload={"request-log": False},
-        )
-        if request_log_error:
-            endpoint_errors.append("request-log: " + request_log_error)
-            source = "partial"
-
-        logs_payload, _, _, logs_error = self._load_json(
-            "logs",
-            join_url(self.management_base_url, "/v0/management/logs"),
-            ttl_seconds=self.logs_refresh_seconds,
-            default_payload={"lines": []},
-        )
-        if logs_error:
-            endpoint_errors.append("logs: " + logs_error)
-            source = "partial"
+        request_log_payload = {"request-log": False}
+        logs_payload = {"lines": []}
 
         if auth_files_payload is None or usage_payload is None:
             if self._last_snapshot:
@@ -156,6 +182,7 @@ class CPAMonitor:
                 if endpoint_errors:
                     stale_snapshot["statusText"] += " " + "; ".join(endpoint_errors)
                 stale_snapshot["error"] = "; ".join(endpoint_errors) if endpoint_errors else stale_snapshot.get("error")
+                stale_snapshot = refresh_alerts_for_stale_snapshot(stale_snapshot)
                 self.logger.warning("refresh failed, serving cached snapshot: %s", stale_snapshot["statusText"])
                 return stale_snapshot
 
@@ -184,7 +211,7 @@ class CPAMonitor:
             "sample source=%s auth_files=%s total_requests=%s total_tokens=%s alerts=%s",
             snapshot["source"],
             len((auth_files_payload or {}).get("files") or []),
-            snapshot["tabs"]["traffic"]["stats"][0]["value"],
+            snapshot["tabs"]["traffic"]["metrics"][0]["value"],
             safe_int((((usage_payload or {}).get("usage") or {}).get("total_tokens"))),
             snapshot["summary"]["alertsPill"],
         )
