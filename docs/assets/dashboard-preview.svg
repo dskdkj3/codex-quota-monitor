@@ -30,7 +30,7 @@
   <rect x="120" y="436" width="530" height="356" rx="24" fill="#fffdf8" stroke="#2f2921" stroke-opacity="0.12"/>
   <text x="156" y="486" fill="#7f7568" font-family="Iosevka, ui-monospace, monospace" font-size="18">Pool</text>
   <text x="156" y="530" fill="#241f1a" font-family="Georgia, serif" font-size="34" font-weight="700">Pool Capacity</text>
-  <text x="156" y="564" fill="#63594c" font-family="Iosevka, ui-monospace, monospace" font-size="18">3 Plus · 1 Team · 2 issues</text>
+  <text x="156" y="564" fill="#63594c" font-family="Iosevka, ui-monospace, monospace" font-size="18">3 Plus · 1 Non-Plus · 2 issues</text>
   <rect x="156" y="598" width="150" height="128" rx="20" fill="#f2ebdd"/>
   <text x="178" y="634" fill="#52473a" font-family="Iosevka, ui-monospace, monospace" font-size="16">5h Capacity</text>
   <text x="178" y="688" fill="#241f1a" font-family="Georgia, serif" font-size="40" font-weight="700">0.3 Plus</text>

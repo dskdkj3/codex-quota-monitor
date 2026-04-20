@@ -8,7 +8,7 @@
 
 ## 你能直接看到什么
 
-- `Pool`：`5h` / `weekly` 已知 Plus 容量、紧凑账号卡片，以及可见但不计入 Plus 总量的 Team 账号
+- `Pool`：`5h` / `weekly` 已知 Plus 容量、紧凑账号卡片，以及可见但不计入 Plus 总量的非 Plus 账号
 - `Traffic`：来自 `CLIProxyAPI` usage 的请求数、成功率、token 和账号分摊
 - `Alerts`：只保留硬 auth 故障、明确 quota exhausted、以及 monitor / 数据源降级
 - `适配设备`：桌面浏览器、手机浏览器、e-ink 等小屏或慢刷新的浏览器

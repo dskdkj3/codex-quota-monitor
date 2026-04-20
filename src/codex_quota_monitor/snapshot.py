@@ -509,6 +509,14 @@ def non_plus_window_note(plan_label):
     return "This plan is excluded from Plus 5h/weekly capacity."
 
 
+def append_window_note(note, extra_note):
+    note = str(note or "").strip()
+    extra_note = str(extra_note or "").strip()
+    if note and extra_note:
+        return f"{note} {extra_note}"
+    return note or extra_note
+
+
 def build_window_state(
     window_definition,
     auth_file,
@@ -522,20 +530,36 @@ def build_window_state(
     reference_time,
 ):
     label = window_definition["label"]
-    if not plus_plan:
-        return {
-            "id": window_definition["id"],
-            "label": label,
-            "state": "na",
-            "percent": None,
-            "valueText": "n/a",
-            "note": non_plus_window_note(plan_label),
-            "fillPercent": 0,
-        }
 
     direct_state = build_direct_window_state(window_definition, quota_sample, reference_time, cycle_seconds)
     if direct_state is not None:
+        if not plus_plan:
+            direct_state["note"] = append_window_note(direct_state.get("note"), non_plus_window_note(plan_label))
         return direct_state
+
+    if not plus_plan:
+        note = "Unknown"
+        if quota_sample == {}:
+            note = "Waiting for first direct sample."
+        elif isinstance(quota_sample, dict) and quota_sample.get("sampledAt") is not None:
+            note = "Direct sample did not include this window."
+        elif isinstance(quota_sample, dict):
+            last_error = str(quota_sample.get("lastError") or "").strip()
+            last_error_at = quota_sample.get("lastErrorAt")
+            note = "Waiting for first direct sample."
+            if last_error and last_error_at is not None:
+                note = f"Direct sample failed {display_compact_timestamp(last_error_at, reference=reference_time)}."
+        if generic_quota:
+            note = "Quota hit not classified as 5h or weekly."
+        return {
+            "id": window_definition["id"],
+            "label": label,
+            "state": "unknown",
+            "percent": None,
+            "valueText": "Unknown",
+            "note": append_window_note(note, non_plus_window_note(plan_label)),
+            "fillPercent": 0,
+        }
 
     signal = find_window_signal(parsed_message, window_definition["aliases"])
     if signal is None:
@@ -1090,6 +1114,7 @@ def build_dashboard_snapshot(
     active_count = sum(1 for context in contexts if context["issueKind"] is None)
     hard_issue_count = sum(1 for context in contexts if context["issueKind"] == "auth")
     quota_issue_count = sum(1 for context in contexts if context["issueKind"] == "quota")
+    non_plus_total = plan_counts["team"] + plan_counts["other"]
 
     return {
         "available": True,
@@ -1101,7 +1126,7 @@ def build_dashboard_snapshot(
         "error": "; ".join(endpoint_errors) if endpoint_errors else None,
         "summary": {
             "gatewayPill": "Gateway OK" if gateway_ok else "Gateway down",
-            "poolPill": f"{plan_counts['plus']} Plus · {plan_counts['team']} Team",
+            "poolPill": f"{plan_counts['plus']} Plus · {non_plus_total} Non-Plus",
             "fiveHourPill": capacity_windows[0]["pillText"] if capacity_windows else "5h unknown",
             "weeklyPill": capacity_windows[1]["pillText"] if len(capacity_windows) > 1 else "Weekly unknown",
             "alertsPill": "Clean" if alerts["alertCount"] == 0 else count_label(alerts["alertCount"], "alert"),
@@ -1110,10 +1135,10 @@ def build_dashboard_snapshot(
         "tabs": {
             "pool": {
                 "title": "Pool Capacity",
-                "summary": f"{plus_total} Plus · {plan_counts['team']} Team · {active_count} healthy · {hard_issue_count + quota_issue_count} issues",
+                "summary": f"{plus_total} Plus · {non_plus_total} Non-Plus · {active_count} healthy · {hard_issue_count + quota_issue_count} issues",
                 "stats": [
                     {"label": "Plus", "value": str(plus_total), "detail": "accounts counted in capacity windows"},
-                    {"label": "Team", "value": str(plan_counts["team"]), "detail": "shown in the grid, excluded from Plus capacity"},
+                    {"label": "Non-Plus", "value": str(non_plus_total), "detail": "shown in the grid, excluded from Plus capacity"},
                     {"label": "Issues", "value": str(hard_issue_count + quota_issue_count), "detail": "hard auth failures and quota hits"},
                     {"label": "Routing", "value": routing["text"], "detail": routing["detail"]},
                 ],
@@ -1123,7 +1148,7 @@ def build_dashboard_snapshot(
                     "5h / weekly windows come from direct Codex usage sampling, one account every "
                     f"{quota_refresh_seconds(quota_payload) or 15}s. CLIProxyAPI still supplies pool membership and "
                     "traffic. Unknown means there is no successful direct sample yet; cached values may remain visible if "
-                    "the direct quota source degrades. Team plans stay visible in the grid but are excluded from Plus "
+                    "the direct quota source degrades. Non-Plus plans stay visible in the grid but are excluded from Plus "
                     "capacity."
                 ),
             },

@@ -256,7 +256,16 @@ class DashboardSnapshotTests(unittest.TestCase):
                     "acct-team": {
                         "sampledAt": dt.datetime(2026, 4, 20, 12, 29, 55, tzinfo=dt.timezone.utc).astimezone(),
                         "planType": "team",
-                        "windows": {},
+                        "windows": {
+                            "5h": {
+                                "percent": 60,
+                                "resetAt": dt.datetime(2026, 4, 20, 16, 0, tzinfo=dt.timezone.utc).astimezone(),
+                            },
+                            "week": {
+                                "percent": 90,
+                                "resetAt": dt.datetime(2026, 4, 24, 0, 0, tzinfo=dt.timezone.utc).astimezone(),
+                            },
+                        },
                         "lastError": None,
                         "lastErrorAt": None,
                     },
@@ -279,6 +288,7 @@ class DashboardSnapshotTests(unittest.TestCase):
 
         self.assertTrue(snapshot["available"])
         self.assertEqual(snapshot["source"], "partial")
+        self.assertEqual(snapshot["summary"]["poolPill"], "2 Plus · 1 Non-Plus")
         self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.3 Plus")
         self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.8 Plus")
         self.assertEqual(snapshot["summary"]["subline"], "Round Robin + Sticky · 4 req · 3.2K tok")
@@ -286,6 +296,7 @@ class DashboardSnapshotTests(unittest.TestCase):
 
         pool_tab = snapshot["tabs"]["pool"]
         self.assertEqual(pool_tab["title"], "Pool Capacity")
+        self.assertEqual(pool_tab["summary"], "2 Plus · 1 Non-Plus · 2 healthy · 1 issues")
         self.assertEqual(pool_tab["capacityWindows"][0]["knownUnitsText"], "0.3 Plus")
         self.assertIn("Unclassified 1", pool_tab["capacityWindows"][0]["summary"])
         self.assertEqual(pool_tab["accounts"][0]["title"], "account-slot")
@@ -296,7 +307,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(pool_tab["accounts"][0]["windows"][0]["valueText"], "Unknown")
         self.assertIn("Resets", pool_tab["accounts"][0]["note"])
         self.assertIn("direct Codex usage sampling", pool_tab["footnote"])
-        self.assertIn("Team plans stay visible in the grid", pool_tab["footnote"])
+        self.assertIn("Non-Plus plans stay visible in the grid", pool_tab["footnote"])
         plus_known = next(account for account in pool_tab["accounts"] if account["title"] == "account-slot")
         self.assertEqual(plus_known["requests"], 2)
         self.assertEqual(plus_known["sharePercent"], 62)
@@ -304,10 +315,9 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertNotIn("stale", plus_known["note"])
         team_account = next(account for account in pool_tab["accounts"] if account["badge"] == "Team")
         self.assertEqual(team_account["sharePercent"], 12)
-        self.assertEqual(
-            team_account["windows"][0]["note"],
-            "Team plan uses separate quota tracking and is excluded from Plus capacity.",
-        )
+        self.assertEqual(team_account["windows"][0]["valueText"], "60%")
+        self.assertIn("Resets", team_account["windows"][0]["note"])
+        self.assertIn("Team plan uses separate quota tracking", team_account["windows"][0]["note"])
 
         traffic_tab = snapshot["tabs"]["traffic"]
         self.assertEqual(traffic_tab["metrics"][0]["value"], "4")
@@ -322,6 +332,141 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(alerts_tab["items"][1]["badge"], "Monitor")
         self.assertIn("config: timed out", snapshot["statusText"])
         self.assertIn("direct Codex usage", snapshot["statusText"])
+
+    def test_build_dashboard_snapshot_keeps_non_plus_unknown_until_first_direct_sample(self):
+        sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
+        snapshot = MODULE.build_dashboard_snapshot(
+            health_payload={"status": "ok"},
+            auth_files_payload={
+                "files": [
+                    {
+                        "auth_index": "acct-plus",
+                        "label": "account-slot",
+                        "status": "active",
+                        "updated_at": "2026-04-20T12:20:00+08:00",
+                        "id_token": {"plan_type": "plus"},
+                    },
+                    {
+                        "auth_index": "acct-enterprise",
+                        "label": "account-slot",
+                        "status": "active",
+                        "updated_at": "2026-04-20T12:21:00+08:00",
+                        "id_token": {"plan_type": "enterprise"},
+                    },
+                ]
+            },
+            usage_payload={"usage": {"total_requests": 0, "success_count": 0, "failure_count": 0, "total_tokens": 0, "apis": {}}},
+            quota_payload={
+                "status": "partial",
+                "eligibleCount": 2,
+                "sampledCount": 1,
+                "freshCount": 1,
+                "staleCount": 0,
+                "cycleSeconds": 30,
+                "completedCycle": False,
+                "degraded": False,
+                "attemptedKey": "acct-enterprise",
+                "attemptError": None,
+                "samples": {
+                    "acct-plus": {
+                        "sampledAt": dt.datetime(2026, 4, 20, 12, 29, 40, tzinfo=dt.timezone.utc).astimezone(),
+                        "planType": "plus",
+                        "windows": {
+                            "5h": {"percent": 40, "resetAt": dt.datetime(2026, 4, 20, 16, 0, tzinfo=dt.timezone.utc).astimezone()},
+                            "week": {"percent": 80, "resetAt": dt.datetime(2026, 4, 24, 0, 0, tzinfo=dt.timezone.utc).astimezone()},
+                        },
+                        "lastError": None,
+                        "lastErrorAt": None,
+                    },
+                    "acct-enterprise": {},
+                },
+            },
+            routing_payload={"routing": {"strategy": "round-robin"}},
+            usage_stats_payload={"usage-statistics-enabled": True},
+            request_log_payload={"request-log": True},
+            logs_payload={"lines": []},
+            sampled_at=sampled_at,
+        )
+
+        self.assertEqual(snapshot["summary"]["poolPill"], "1 Plus · 1 Non-Plus")
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.4 Plus")
+        enterprise_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["title"] == "account-slot")
+        self.assertEqual(enterprise_account["windows"][0]["valueText"], "Unknown")
+        self.assertIn("Waiting for first direct sample.", enterprise_account["windows"][0]["note"])
+        self.assertIn("Enterprise plan is excluded from Plus 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
+        self.assertEqual(snapshot["tabs"]["pool"]["capacityWindows"][0]["knownUnitsText"], "0.4 Plus")
+
+    def test_build_dashboard_snapshot_flags_non_plus_direct_exhaustion_without_affecting_plus_capacity(self):
+        sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
+        snapshot = MODULE.build_dashboard_snapshot(
+            health_payload={"status": "ok"},
+            auth_files_payload={
+                "files": [
+                    {
+                        "auth_index": "acct-plus",
+                        "label": "account-slot",
+                        "status": "active",
+                        "updated_at": "2026-04-20T12:20:00+08:00",
+                        "id_token": {"plan_type": "plus"},
+                    },
+                    {
+                        "auth_index": "acct-enterprise",
+                        "label": "account-slot",
+                        "status": "active",
+                        "updated_at": "2026-04-20T12:21:00+08:00",
+                        "id_token": {"plan_type": "enterprise"},
+                    },
+                ]
+            },
+            usage_payload={"usage": {"total_requests": 0, "success_count": 0, "failure_count": 0, "total_tokens": 0, "apis": {}}},
+            quota_payload={
+                "status": "live",
+                "eligibleCount": 2,
+                "sampledCount": 2,
+                "freshCount": 2,
+                "staleCount": 0,
+                "cycleSeconds": 30,
+                "completedCycle": True,
+                "degraded": False,
+                "attemptedKey": "acct-enterprise",
+                "attemptError": None,
+                "samples": {
+                    "acct-plus": {
+                        "sampledAt": dt.datetime(2026, 4, 20, 12, 29, 40, tzinfo=dt.timezone.utc).astimezone(),
+                        "planType": "plus",
+                        "windows": {
+                            "5h": {"percent": 50, "resetAt": dt.datetime(2026, 4, 20, 16, 0, tzinfo=dt.timezone.utc).astimezone()},
+                            "week": {"percent": 80, "resetAt": dt.datetime(2026, 4, 24, 0, 0, tzinfo=dt.timezone.utc).astimezone()},
+                        },
+                        "lastError": None,
+                        "lastErrorAt": None,
+                    },
+                    "acct-enterprise": {
+                        "sampledAt": dt.datetime(2026, 4, 20, 12, 29, 55, tzinfo=dt.timezone.utc).astimezone(),
+                        "planType": "enterprise",
+                        "windows": {
+                            "5h": {"percent": 0, "resetAt": dt.datetime(2026, 4, 20, 16, 0, tzinfo=dt.timezone.utc).astimezone()},
+                            "week": {"percent": 0, "resetAt": dt.datetime(2026, 4, 24, 0, 0, tzinfo=dt.timezone.utc).astimezone()},
+                        },
+                        "lastError": None,
+                        "lastErrorAt": None,
+                    },
+                },
+            },
+            routing_payload={"routing": {"strategy": "round-robin"}},
+            usage_stats_payload={"usage-statistics-enabled": True},
+            request_log_payload={"request-log": True},
+            logs_payload={"lines": []},
+            sampled_at=sampled_at,
+        )
+
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.5 Plus")
+        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.8 Plus")
+        enterprise_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["title"] == "account-slot")
+        self.assertEqual(enterprise_account["statusLabel"], "Quota hit")
+        self.assertEqual(enterprise_account["windows"][0]["valueText"], "0%")
+        self.assertIn("Enterprise plan is excluded from Plus 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
+        self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][1]["value"], "1")
 
     def test_build_unavailable_snapshot_has_monitor_alert(self):
         snapshot = MODULE.build_unavailable_snapshot("auth-files: connection refused")

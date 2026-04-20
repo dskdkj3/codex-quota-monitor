@@ -8,7 +8,7 @@ Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth p
 
 ## At A Glance
 
-- `Pool`: 5h and weekly known Plus capacity, compact account cards, and Team visibility without counting Team plans into Plus totals
+- `Pool`: 5h and weekly known Plus capacity, compact account cards, and visible non-Plus plans without counting them into Plus totals
 - `Traffic`: current request, success, token, and account split from `CLIProxyAPI` usage
 - `Alerts`: only hard auth failures, explicit quota exhaustion, and monitor/source degradation
 - `Target devices`: desktop, mobile, and small-screen browsers
