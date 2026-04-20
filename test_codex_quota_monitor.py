@@ -250,22 +250,28 @@ class DashboardSnapshotTests(unittest.TestCase):
 
         self.assertTrue(snapshot["available"])
         self.assertEqual(snapshot["source"], "partial")
-        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.3 Plus · 1 stale")
-        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.8 Plus · 1 stale")
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.3 Plus")
+        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.8 Plus")
         self.assertEqual(snapshot["summary"]["subline"], "Round Robin + Sticky · 4 req · 3.2K tok")
         self.assertEqual(snapshot["summary"]["alertsPill"], "2 alerts")
 
         pool_tab = snapshot["tabs"]["pool"]
         self.assertEqual(pool_tab["title"], "Pool Capacity")
         self.assertEqual(pool_tab["capacityWindows"][0]["knownUnitsText"], "0.3 Plus")
-        self.assertIn("Stale 1", pool_tab["capacityWindows"][0]["summary"])
         self.assertIn("Unclassified 1", pool_tab["capacityWindows"][0]["summary"])
         self.assertEqual(pool_tab["accounts"][0]["title"], "account-slot")
         self.assertEqual(pool_tab["accounts"][0]["windows"][0]["valueText"], "Unknown")
         self.assertIn("Resets", pool_tab["accounts"][0]["note"])
         self.assertIn("direct Codex usage sampling", pool_tab["footnote"])
+        self.assertIn("Team plans stay visible in the grid", pool_tab["footnote"])
         plus_known = next(account for account in pool_tab["accounts"] if account["title"] == "account-slot")
-        self.assertIn("stale", plus_known["windows"][0]["note"])
+        self.assertNotIn("stale", plus_known["windows"][0]["note"])
+        self.assertNotIn("stale", plus_known["note"])
+        team_account = next(account for account in pool_tab["accounts"] if account["badge"] == "Team")
+        self.assertEqual(
+            team_account["windows"][0]["note"],
+            "Team plan uses separate quota tracking and is excluded from Plus capacity.",
+        )
 
         traffic_tab = snapshot["tabs"]["traffic"]
         self.assertEqual(traffic_tab["metrics"][0]["value"], "4")

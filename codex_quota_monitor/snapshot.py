@@ -460,8 +460,6 @@ def quota_account_note(quota_sample, reference_time, cycle_seconds):
         return trim_text("Direct quota sampling has not succeeded yet.", limit=180)
 
     note = f"Direct quota sample {display_compact_timestamp(sampled_at, reference=reference_time)}"
-    if is_quota_sample_stale(quota_sample, reference_time, cycle_seconds):
-        note += " is stale"
     if last_error and last_error_at is not None and last_error_at >= sampled_at:
         note += f"; refresh failed {display_compact_timestamp(last_error_at, reference=reference_time)}: {last_error}"
     return trim_text(note, limit=180)
@@ -487,8 +485,6 @@ def build_direct_window_state(window_definition, quota_sample, reference_time, c
         note_bits.append(f"Resets {display_compact_timestamp(reset_at, reference=reference_time)}")
     if sampled_at is not None:
         note_bits.append(f"Direct {display_compact_timestamp(sampled_at, reference=reference_time)}")
-    if stale:
-        note_bits.append("stale")
     if last_error and last_error_at is not None and (sampled_at is None or last_error_at >= sampled_at):
         note_bits.append(f"retry failed {display_compact_timestamp(last_error_at, reference=reference_time)}")
 
@@ -504,7 +500,27 @@ def build_direct_window_state(window_definition, quota_sample, reference_time, c
     }
 
 
-def build_window_state(window_definition, auth_file, parsed_message, *, plus_plan, generic_quota, quota_sample, cycle_seconds, reference_time):
+def non_plus_window_note(plan_label):
+    normalized_plan = normalize_key(plan_label)
+    if normalized_plan == "team":
+        return "Team plan uses separate quota tracking and is excluded from Plus capacity."
+    if plan_label and plan_label != "Unknown":
+        return f"{plan_label} plan is excluded from Plus 5h/weekly capacity."
+    return "This plan is excluded from Plus 5h/weekly capacity."
+
+
+def build_window_state(
+    window_definition,
+    auth_file,
+    parsed_message,
+    *,
+    plan_label,
+    plus_plan,
+    generic_quota,
+    quota_sample,
+    cycle_seconds,
+    reference_time,
+):
     label = window_definition["label"]
     if not plus_plan:
         return {
@@ -513,7 +529,7 @@ def build_window_state(window_definition, auth_file, parsed_message, *, plus_pla
             "state": "na",
             "percent": None,
             "valueText": "n/a",
-            "note": "Not tracked for this plan.",
+            "note": non_plus_window_note(plan_label),
             "fillPercent": 0,
         }
 
@@ -633,6 +649,7 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
             definition,
             auth_file,
             parsed_message,
+            plan_label=plan_label,
             plus_plan=plus_plan,
             generic_quota=generic_quota,
             quota_sample=quota_sample,
@@ -816,16 +833,12 @@ def build_capacity_windows(contexts):
             summary_bits.append(f"Exhausted {exhausted_count}")
         if unclassified_count:
             summary_bits.append(f"Unclassified {unclassified_count}")
-        if stale_count:
-            summary_bits.append(f"Stale {stale_count}")
         if not summary_bits:
             summary_bits = ["No Plus accounts"]
 
         pill_suffix = ""
         if unknown_count > 0:
             pill_suffix = f" · {unknown_count} unknown"
-        elif stale_count > 0:
-            pill_suffix = f" · {stale_count} stale"
 
         items.append(
             {
@@ -1102,7 +1115,9 @@ def build_dashboard_snapshot(
                 "footnote": (
                     "5h / weekly windows come from direct Codex usage sampling, one account every "
                     f"{quota_refresh_seconds(quota_payload) or 15}s. CLIProxyAPI still supplies pool membership and "
-                    "traffic. Unknown means there is no successful direct sample yet; stale cards keep the last known sample."
+                    "traffic. Unknown means there is no successful direct sample yet; cached values may remain visible if "
+                    "the direct quota source degrades. Team plans stay visible in the grid but are excluded from Plus "
+                    "capacity."
                 ),
             },
             "traffic": {
