@@ -12,6 +12,8 @@ stdenvNoCC.mkDerivation {
   checkPhase = ''
     runHook preCheck
     ${python3}/bin/python3 -m py_compile ${./codex-quota-monitor.py}
+    export CODEX_QUOTA_MONITOR_MODULE=${./codex-quota-monitor.py}
+    ${python3}/bin/python3 ${./test_codex_quota_monitor.py}
     runHook postCheck
   '';
 
@@ -23,7 +25,7 @@ stdenvNoCC.mkDerivation {
   '';
 
   meta = {
-    description = "e-ink-friendly local HTTP monitor for Codex quota";
+    description = "e-ink-friendly local HTTP dashboard for CLIProxyAPI pools";
     mainProgram = "codex-quota-monitor";
     platforms = lib.platforms.linux;
   };
