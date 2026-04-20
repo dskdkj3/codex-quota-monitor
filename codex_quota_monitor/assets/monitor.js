@@ -2,6 +2,12 @@ var BOOTSTRAP = window.CPA_MONITOR_BOOTSTRAP || {};
 var INITIAL_SNAPSHOT = BOOTSTRAP.initialSnapshot || {};
 var REFRESH_MS = BOOTSTRAP.refreshMs || 15000;
 var TAB_NAMES = ["pool", "traffic", "alerts"];
+var ACTIVE_TAB_NAME = null;
+var LAST_TAB_SIGNATURES = {
+  pool: null,
+  traffic: null,
+  alerts: null
+};
 
 function text(value, fallback) {
   if (typeof value === "string" && value.length > 0) {
@@ -30,6 +36,13 @@ function tabFromHash() {
 }
 
 function setActiveTab(name, updateHash) {
+  if (ACTIVE_TAB_NAME === name) {
+    if (updateHash && window.location.hash !== "#" + name) {
+      window.location.hash = name;
+    }
+    return;
+  }
+
   for (var index = 0; index < TAB_NAMES.length; index += 1) {
     var tabName = TAB_NAMES[index];
     var button = document.getElementById("tab-button-" + tabName);
@@ -45,6 +58,15 @@ function setActiveTab(name, updateHash) {
   if (updateHash && window.location.hash !== "#" + name) {
     window.location.hash = name;
   }
+  ACTIVE_TAB_NAME = name;
+}
+
+function setClassName(id, className) {
+  var target = document.getElementById(id);
+  if (!target || target.className === className) {
+    return;
+  }
+  target.className = className;
 }
 
 function setText(id, value, fallback) {
@@ -52,7 +74,23 @@ function setText(id, value, fallback) {
   if (!target) {
     return;
   }
-  target.textContent = text(value, fallback);
+  var nextValue = text(value, fallback);
+  if (target.textContent === nextValue) {
+    return;
+  }
+  target.textContent = nextValue;
+}
+
+function setHtml(id, value) {
+  var target = document.getElementById(id);
+  if (!target || target.innerHTML === value) {
+    return;
+  }
+  target.innerHTML = value;
+}
+
+function tabSignature(tabData) {
+  return JSON.stringify(tabData || {});
 }
 
 function clampPercent(value) {
@@ -69,12 +107,11 @@ function clampPercent(value) {
 }
 
 function renderMetricCards(targetId, metrics) {
-  var target = document.getElementById(targetId);
   var safeMetrics = metrics && metrics.length ? metrics : [];
   var htmlParts = [];
 
   if (!safeMetrics.length) {
-    target.innerHTML = "";
+    setHtml(targetId, "");
     return;
   }
 
@@ -90,16 +127,15 @@ function renderMetricCards(targetId, metrics) {
     );
   }
 
-  target.innerHTML = htmlParts.join("");
+  setHtml(targetId, htmlParts.join(""));
 }
 
 function renderCapacityCards(targetId, windows) {
-  var target = document.getElementById(targetId);
   var safeWindows = windows && windows.length ? windows : [];
   var htmlParts = [];
 
   if (!safeWindows.length) {
-    target.innerHTML = '<article class="capacity-card"><p class="empty">No Plus capacity windows are available yet.</p></article>';
+    setHtml(targetId, '<article class="capacity-card"><p class="empty">No Plus capacity windows are available yet.</p></article>');
     return;
   }
 
@@ -122,7 +158,7 @@ function renderCapacityCards(targetId, windows) {
     );
   }
 
-  target.innerHTML = htmlParts.join("");
+  setHtml(targetId, htmlParts.join(""));
 }
 
 function renderQuotaLines(windows) {
@@ -154,12 +190,11 @@ function renderQuotaLines(windows) {
 }
 
 function renderPoolAccounts(targetId, accounts) {
-  var target = document.getElementById(targetId);
   var safeAccounts = accounts && accounts.length ? accounts : [];
   var htmlParts = [];
 
   if (!safeAccounts.length) {
-    target.innerHTML = '<article class="account"><p class="empty">No accounts are visible in the pool yet.</p></article>';
+    setHtml(targetId, '<article class="account"><p class="empty">No accounts are visible in the pool yet.</p></article>');
     return;
   }
 
@@ -183,16 +218,15 @@ function renderPoolAccounts(targetId, accounts) {
     );
   }
 
-  target.innerHTML = htmlParts.join("");
+  setHtml(targetId, htmlParts.join(""));
 }
 
 function renderListItems(targetId, items, emptyMessage) {
-  var target = document.getElementById(targetId);
   var safeItems = items && items.length ? items : [];
   var htmlParts = [];
 
   if (!safeItems.length) {
-    target.innerHTML = '<article class="list-item"><p class="empty">' + escapeHtml(emptyMessage) + "</p></article>";
+    setHtml(targetId, '<article class="list-item"><p class="empty">' + escapeHtml(emptyMessage) + "</p></article>");
     return;
   }
 
@@ -222,7 +256,7 @@ function renderListItems(targetId, items, emptyMessage) {
     );
   }
 
-  target.innerHTML = htmlParts.join("");
+  setHtml(targetId, htmlParts.join(""));
 }
 
 function renderPoolTab(tabData) {
@@ -253,11 +287,19 @@ function renderAlertsTab(tabData) {
   renderListItems("alerts-items", safeTab.items || [], "No active alerts.");
 }
 
+function renderTabIfChanged(name, tabData, renderFn) {
+  var signature = tabSignature(tabData);
+  if (LAST_TAB_SIGNATURES[name] === signature) {
+    return;
+  }
+  LAST_TAB_SIGNATURES[name] = signature;
+  renderFn(tabData || {});
+}
+
 function renderSnapshot(snapshot) {
   var safeSnapshot = snapshot || {};
   var summary = safeSnapshot.summary || {};
   var tabs = safeSnapshot.tabs || {};
-  var statusPanel = document.getElementById("status-panel");
 
   setText("gateway-pill", summary.gatewayPill, "Gateway unknown");
   setText("five-hour-pill", summary.fiveHourPill, "5h unknown");
@@ -270,15 +312,14 @@ function renderSnapshot(snapshot) {
   setText("status-text", safeSnapshot.statusText, "No status available");
 
   if (!safeSnapshot.available || safeSnapshot.source !== "live") {
-    statusPanel.className = "panel status-panel is-alert";
+    setClassName("status-panel", "panel status-panel is-alert");
   } else {
-    statusPanel.className = "panel status-panel";
+    setClassName("status-panel", "panel status-panel");
   }
 
-  renderPoolTab(tabs.pool || {});
-  renderTrafficTab(tabs.traffic || {});
-  renderAlertsTab(tabs.alerts || {});
-  setActiveTab(tabFromHash(), false);
+  renderTabIfChanged("pool", tabs.pool, renderPoolTab);
+  renderTabIfChanged("traffic", tabs.traffic, renderTrafficTab);
+  renderTabIfChanged("alerts", tabs.alerts, renderAlertsTab);
 }
 
 function refreshSnapshot() {
@@ -294,16 +335,14 @@ function refreshSnapshot() {
       try {
         renderSnapshot(JSON.parse(request.responseText));
       } catch (error) {
-        document.getElementById("status-panel").className = "panel status-panel is-alert";
-        document.getElementById("status-text").textContent =
-          "Refresh returned unreadable data. The page kept the previous snapshot.";
+        setClassName("status-panel", "panel status-panel is-alert");
+        setText("status-text", "Refresh returned unreadable data. The page kept the previous snapshot.", "");
       }
       return;
     }
 
-    document.getElementById("status-panel").className = "panel status-panel is-alert";
-    document.getElementById("status-text").textContent =
-      "Refresh failed. The page will keep the previous snapshot until the next retry.";
+    setClassName("status-panel", "panel status-panel is-alert");
+    setText("status-text", "Refresh failed. The page will keep the previous snapshot until the next retry.", "");
   };
   request.send(null);
 }

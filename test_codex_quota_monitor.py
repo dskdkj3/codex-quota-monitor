@@ -305,6 +305,7 @@ class PageRenderingTests(unittest.TestCase):
 
         self.assertIn('href="/monitor.css"', page)
         self.assertIn('src="/monitor.js"', page)
+        self.assertNotIn('http-equiv="refresh"', page)
         self.assertIn("CPA_MONITOR_BOOTSTRAP", page)
         self.assertIn('id="five-hour-pill"', page)
         self.assertIn('id="pool-capacity"', page)
@@ -372,6 +373,9 @@ class HandlerTests(unittest.TestCase):
             script = response.read().decode("utf-8")
             self.assertIn("renderPoolTab", script)
             self.assertIn("renderCapacityCards", script)
+            self.assertIn("LAST_TAB_SIGNATURES", script)
+            self.assertIn("window.setInterval(refreshSnapshot, REFRESH_MS);", script)
+            self.assertIn("The page will keep the previous snapshot until the next retry.", script)
 
 
 if __name__ == "__main__":
