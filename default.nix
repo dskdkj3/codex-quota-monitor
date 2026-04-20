@@ -1,42 +1,34 @@
-{ lib, python3, stdenvNoCC }:
+{ lib, python312 }:
 
-stdenvNoCC.mkDerivation {
+let
+  py = python312.pkgs;
+in
+py.buildPythonApplication {
   pname = "codex-quota-monitor";
   version = "0.1.0";
-
+  pyproject = true;
   src = ./.;
-  dontUnpack = true;
-  nativeBuildInputs = [ python3 ];
-  doCheck = true;
 
-  checkPhase = ''
-    runHook preCheck
-    ${python3}/bin/python3 - <<'PY'
-    import pathlib
+  nativeBuildInputs = [
+    py.setuptools
+    py.wheel
+  ];
 
-    paths = [pathlib.Path("${./codex-quota-monitor.py}")]
-    paths.extend(sorted(pathlib.Path("${./codex_quota_monitor}").rglob("*.py")))
+  pythonImportsCheck = [ "codex_quota_monitor" ];
 
-    for path in paths:
-        compile(path.read_text(encoding="utf-8"), str(path), "exec")
-    PY
-    export PYTHONPATH=${./.}
-    ${python3}/bin/python3 ${./test_codex_quota_monitor.py}
-    runHook postCheck
-  '';
-
-  installPhase = ''
-    runHook preInstall
-    install -Dm755 ${./codex-quota-monitor.py} $out/bin/codex-quota-monitor
-    mkdir -p $out/lib/codex-quota-monitor/codex_quota_monitor
-    cp -r ${./codex_quota_monitor}/. $out/lib/codex-quota-monitor/codex_quota_monitor/
-    patchShebangs $out/bin
-    runHook postInstall
+  doCheck = false;
+  doInstallCheck = true;
+  installCheckPhase = ''
+    runHook preInstallCheck
+    export PYTHONPATH=$PWD/src
+    python -m unittest discover -s tests -v
+    runHook postInstallCheck
   '';
 
   meta = {
-    description = "e-ink-friendly local HTTP dashboard for CLIProxyAPI pools";
+    description = "Browser-friendly Codex quota dashboard for CLIProxyAPI pools";
+    license = lib.licenses.mit;
     mainProgram = "codex-quota-monitor";
-    platforms = lib.platforms.linux;
+    platforms = lib.platforms.all;
   };
 }

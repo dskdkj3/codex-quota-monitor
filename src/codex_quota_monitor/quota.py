@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import urllib.request
+
+from .version import USER_AGENT
 from urllib.error import HTTPError
 
 from .util import compact_error, normalize_key, now_local, parse_timestamp
@@ -298,7 +300,7 @@ class QuotaSampler:
                 "Accept": "application/json",
                 "Authorization": "Bearer " + access_token,
                 "Cache-Control": "no-store",
-                "User-Agent": "codex-quota-monitor/0.2",
+                "User-Agent": USER_AGENT,
             },
         )
         if account_id:

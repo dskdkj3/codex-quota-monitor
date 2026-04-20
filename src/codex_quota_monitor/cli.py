@@ -6,44 +6,67 @@ from http.server import ThreadingHTTPServer
 from .runtime import CPAMonitor, MonitorRequestHandler
 
 
+def read_env(primary_name, legacy_name, fallback):
+    value = os.environ.get(primary_name)
+    if value not in (None, ""):
+        return value
+    value = os.environ.get(legacy_name)
+    if value not in (None, ""):
+        return value
+    return fallback
+
+
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="Serve a e-ink-friendly CLIProxyAPI pool monitor.")
-    parser.add_argument("--host", default=os.environ.get("CODEX_MONITOR_HOST", "0.0.0.0"))
+    parser = argparse.ArgumentParser(description="Serve a browser-friendly Codex quota dashboard for CLIProxyAPI pools.")
+    parser.add_argument(
+        "--host",
+        default=read_env("CODEX_QUOTA_MONITOR_HOST", "CODEX_MONITOR_HOST", "127.0.0.1"),
+    )
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.environ.get("CODEX_MONITOR_PORT", "4515")),
+        default=int(read_env("CODEX_QUOTA_MONITOR_PORT", "CODEX_MONITOR_PORT", "4515")),
     )
     parser.add_argument(
         "--refresh-seconds",
         type=int,
-        default=int(os.environ.get("CODEX_MONITOR_REFRESH_SECONDS", "15")),
+        default=int(read_env("CODEX_QUOTA_MONITOR_REFRESH_SECONDS", "CODEX_MONITOR_REFRESH_SECONDS", "15")),
     )
     parser.add_argument(
         "--logs-refresh-seconds",
         type=int,
-        default=int(os.environ.get("CODEX_MONITOR_LOGS_REFRESH_SECONDS", "0")),
+        default=int(
+            read_env("CODEX_QUOTA_MONITOR_LOGS_REFRESH_SECONDS", "CODEX_MONITOR_LOGS_REFRESH_SECONDS", "0")
+        ),
     )
     parser.add_argument(
         "--timeout-seconds",
         type=float,
-        default=float(os.environ.get("CODEX_MONITOR_TIMEOUT_SECONDS", "5")),
+        default=float(read_env("CODEX_QUOTA_MONITOR_TIMEOUT_SECONDS", "CODEX_MONITOR_TIMEOUT_SECONDS", "5")),
     )
     parser.add_argument(
         "--management-base-url",
-        default=os.environ.get("CODEX_MONITOR_MANAGEMENT_BASE_URL", "http://127.0.0.1:8318"),
+        default=read_env(
+            "CODEX_QUOTA_MONITOR_MANAGEMENT_BASE_URL",
+            "CODEX_MONITOR_MANAGEMENT_BASE_URL",
+            "http://127.0.0.1:8318",
+        ),
     )
     parser.add_argument(
         "--gateway-health-url",
-        default=os.environ.get("CODEX_MONITOR_GATEWAY_HEALTH_URL", "http://127.0.0.1:8317/healthz"),
+        default=read_env(
+            "CODEX_QUOTA_MONITOR_GATEWAY_HEALTH_URL",
+            "CODEX_MONITOR_GATEWAY_HEALTH_URL",
+            "http://127.0.0.1:8317/healthz",
+        ),
     )
     parser.add_argument(
         "--auth-dir",
-        default=os.environ.get("CODEX_MONITOR_AUTH_DIR", ""),
+        default=read_env("CODEX_QUOTA_MONITOR_AUTH_DIR", "CODEX_MONITOR_AUTH_DIR", ""),
     )
     parser.add_argument(
         "--log-level",
-        default=os.environ.get("CODEX_MONITOR_LOG_LEVEL", "INFO"),
+        default=read_env("CODEX_QUOTA_MONITOR_LOG_LEVEL", "CODEX_MONITOR_LOG_LEVEL", "INFO"),
     )
     return parser.parse_args(argv)
 

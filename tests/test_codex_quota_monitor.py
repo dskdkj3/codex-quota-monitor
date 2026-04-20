@@ -10,13 +10,42 @@ import threading
 import unittest
 import urllib.request
 from http.server import ThreadingHTTPServer
+from unittest import mock
 
 
-ROOT = pathlib.Path(os.environ.get("CODEX_QUOTA_MONITOR_ROOT", pathlib.Path(__file__).resolve().parent))
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(
+    os.environ.get("CODEX_QUOTA_MONITOR_ROOT")
+    or os.environ.get("CODEX_QUOTA_MONITOR_ROOT")
+    or pathlib.Path(__file__).resolve().parents[1]
+)
+SOURCE_ROOT = ROOT if (ROOT / "codex_quota_monitor").is_dir() else ROOT / "src"
+if str(SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SOURCE_ROOT))
 
 import codex_quota_monitor as MODULE
+
+
+class CliTests(unittest.TestCase):
+    def test_parse_args_defaults_to_loopback(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            args = MODULE.parse_args([])
+
+        self.assertEqual(args.host, "127.0.0.1")
+        self.assertEqual(args.port, 4515)
+
+    def test_parse_args_prefers_new_env_names_but_accepts_legacy_aliases(self):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "CODEX_QUOTA_MONITOR_HOST": "0.0.0.0",
+                "CODEX_MONITOR_PORT": "9000",
+            },
+            clear=True,
+        ):
+            args = MODULE.parse_args([])
+
+        self.assertEqual(args.host, "0.0.0.0")
+        self.assertEqual(args.port, 9000)
 
 
 class QuotaParsingTests(unittest.TestCase):
@@ -313,7 +342,7 @@ class PageRenderingTests(unittest.TestCase):
         self.assertIn('href="/monitor.css"', page)
         self.assertIn('src="/monitor.js"', page)
         self.assertNotIn('http-equiv="refresh"', page)
-        self.assertIn("CPA_MONITOR_BOOTSTRAP", page)
+        self.assertIn("CODEX_QUOTA_MONITOR_BOOTSTRAP", page)
         self.assertIn('id="five-hour-pill"', page)
         self.assertIn('id="pool-capacity"', page)
         self.assertIn('id="pool-accounts"', page)

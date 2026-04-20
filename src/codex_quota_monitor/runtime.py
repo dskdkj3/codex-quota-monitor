@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from .quota import QuotaSampler
 from .snapshot import build_dashboard_snapshot, build_unavailable_snapshot
 from .util import compact_error, count_label, join_url, now_local, safe_int
+from .version import USER_AGENT
 from .web import load_asset_payload, render_page
 
 
@@ -257,7 +258,7 @@ class CPAMonitor:
             headers={
                 "Accept": "application/json",
                 "Cache-Control": "no-store",
-                "User-Agent": "codex-quota-monitor/0.2",
+                "User-Agent": USER_AGENT,
             },
         )
         with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:

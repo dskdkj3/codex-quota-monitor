@@ -1,4 +1,4 @@
-var BOOTSTRAP = window.CPA_MONITOR_BOOTSTRAP || {};
+var BOOTSTRAP = window.CODEX_QUOTA_MONITOR_BOOTSTRAP || {};
 var INITIAL_SNAPSHOT = BOOTSTRAP.initialSnapshot || {};
 var REFRESH_MS = BOOTSTRAP.refreshMs || 15000;
 var TAB_NAMES = ["pool", "traffic", "alerts"];

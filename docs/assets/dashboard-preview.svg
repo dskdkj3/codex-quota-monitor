@@ -1,0 +1,68 @@
+<svg width="1400" height="920" viewBox="0 0 1400 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1400" height="920" fill="#efe9dc"/>
+  <rect x="72" y="56" width="1256" height="808" rx="28" fill="#fbf7ef" stroke="#2f2921" stroke-opacity="0.14"/>
+  <rect x="72" y="56" width="1256" height="64" rx="28" fill="#e1d7c6"/>
+  <circle cx="116" cy="88" r="10" fill="#c36643"/>
+  <circle cx="148" cy="88" r="10" fill="#cf9f47"/>
+  <circle cx="180" cy="88" r="10" fill="#7e9d61"/>
+  <text x="222" y="95" fill="#3b3128" font-family="Iosevka, ui-monospace, monospace" font-size="24" font-weight="700">Codex Quota Monitor</text>
+
+  <rect x="120" y="156" width="1160" height="164" rx="26" fill="#1f1b18"/>
+  <text x="164" y="202" fill="#cabfaa" font-family="Iosevka, ui-monospace, monospace" font-size="20" font-weight="600">Desktop · Mobile · e-ink</text>
+  <text x="164" y="252" fill="#fff8eb" font-family="Georgia, serif" font-size="58" font-weight="700">Codex Quota</text>
+  <text x="164" y="292" fill="#d7ccb8" font-family="Iosevka, ui-monospace, monospace" font-size="24">Quota-first dashboard for CLIProxyAPI Codex pools.</text>
+
+  <rect x="860" y="186" width="112" height="44" rx="22" fill="#3a342d"/>
+  <text x="891" y="214" fill="#efe9dc" font-family="Iosevka, ui-monospace, monospace" font-size="18">Gateway</text>
+  <rect x="986" y="186" width="98" height="44" rx="22" fill="#6f8251"/>
+  <text x="1022" y="214" fill="#fffdf8" font-family="Iosevka, ui-monospace, monospace" font-size="18">5h 0.3</text>
+  <rect x="1098" y="186" width="112" height="44" rx="22" fill="#5f7257"/>
+  <text x="1121" y="214" fill="#fffdf8" font-family="Iosevka, ui-monospace, monospace" font-size="18">Week 0.8</text>
+  <rect x="1224" y="186" width="88" height="44" rx="22" fill="#89574b"/>
+  <text x="1248" y="214" fill="#fffdf8" font-family="Iosevka, ui-monospace, monospace" font-size="18">2 alerts</text>
+
+  <rect x="120" y="348" width="1160" height="64" rx="20" fill="#ede4d6"/>
+  <rect x="144" y="364" width="126" height="32" rx="16" fill="#1f1b18"/>
+  <text x="190" y="385" fill="#fff8eb" font-family="Iosevka, ui-monospace, monospace" font-size="18">Pool</text>
+  <text x="314" y="385" fill="#52473a" font-family="Iosevka, ui-monospace, monospace" font-size="18">Traffic</text>
+  <text x="424" y="385" fill="#52473a" font-family="Iosevka, ui-monospace, monospace" font-size="18">Alerts</text>
+
+  <rect x="120" y="436" width="530" height="356" rx="24" fill="#fffdf8" stroke="#2f2921" stroke-opacity="0.12"/>
+  <text x="156" y="486" fill="#7f7568" font-family="Iosevka, ui-monospace, monospace" font-size="18">Pool</text>
+  <text x="156" y="530" fill="#241f1a" font-family="Georgia, serif" font-size="34" font-weight="700">Pool Capacity</text>
+  <text x="156" y="564" fill="#63594c" font-family="Iosevka, ui-monospace, monospace" font-size="18">3 Plus · 1 Team · 2 issues</text>
+  <rect x="156" y="598" width="150" height="128" rx="20" fill="#f2ebdd"/>
+  <text x="178" y="634" fill="#52473a" font-family="Iosevka, ui-monospace, monospace" font-size="16">5h Capacity</text>
+  <text x="178" y="688" fill="#241f1a" font-family="Georgia, serif" font-size="40" font-weight="700">0.3 Plus</text>
+  <rect x="326" y="598" width="150" height="128" rx="20" fill="#f2ebdd"/>
+  <text x="348" y="634" fill="#52473a" font-family="Iosevka, ui-monospace, monospace" font-size="16">Weekly</text>
+  <text x="348" y="688" fill="#241f1a" font-family="Georgia, serif" font-size="40" font-weight="700">0.8 Plus</text>
+  <rect x="496" y="598" width="118" height="128" rx="20" fill="#f7efe2"/>
+  <text x="518" y="634" fill="#52473a" font-family="Iosevka, ui-monospace, monospace" font-size="16">Status</text>
+  <text x="518" y="688" fill="#9b5b49" font-family="Iosevka, ui-monospace, monospace" font-size="24" font-weight="700">Quota hit</text>
+  <rect x="156" y="744" width="458" height="24" rx="12" fill="#e7ddce"/>
+  <rect x="156" y="744" width="286" height="24" rx="12" fill="#768a59"/>
+  <text x="156" y="788" fill="#63594c" font-family="Iosevka, ui-monospace, monospace" font-size="16">account-slot · 62% of recent traffic</text>
+
+  <rect x="676" y="436" width="284" height="356" rx="24" fill="#fffdf8" stroke="#2f2921" stroke-opacity="0.12"/>
+  <text x="708" y="486" fill="#7f7568" font-family="Iosevka, ui-monospace, monospace" font-size="18">Traffic</text>
+  <text x="708" y="530" fill="#241f1a" font-family="Georgia, serif" font-size="34" font-weight="700">Live Split</text>
+  <text x="708" y="564" fill="#63594c" font-family="Iosevka, ui-monospace, monospace" font-size="18">4 req · 75% success · 3.2K tok</text>
+  <rect x="708" y="604" width="220" height="18" rx="9" fill="#e9dfd1"/>
+  <rect x="708" y="604" width="136" height="18" rx="9" fill="#6e8252"/>
+  <rect x="708" y="646" width="220" height="18" rx="9" fill="#e9dfd1"/>
+  <rect x="708" y="646" width="54" height="18" rx="9" fill="#c7b89c"/>
+  <rect x="708" y="688" width="220" height="18" rx="9" fill="#e9dfd1"/>
+  <rect x="708" y="688" width="30" height="18" rx="9" fill="#8b6d59"/>
+  <text x="708" y="736" fill="#63594c" font-family="Iosevka, ui-monospace, monospace" font-size="16">Round Robin + Sticky</text>
+
+  <rect x="986" y="436" width="294" height="356" rx="24" fill="#fffdf8" stroke="#2f2921" stroke-opacity="0.12"/>
+  <text x="1018" y="486" fill="#7f7568" font-family="Iosevka, ui-monospace, monospace" font-size="18">Alerts</text>
+  <text x="1018" y="530" fill="#241f1a" font-family="Georgia, serif" font-size="34" font-weight="700">Only Actionable</text>
+  <rect x="1018" y="574" width="230" height="74" rx="18" fill="#f8ece7"/>
+  <text x="1040" y="610" fill="#8e5448" font-family="Iosevka, ui-monospace, monospace" font-size="16" font-weight="700">Quota</text>
+  <text x="1040" y="636" fill="#52473a" font-family="Iosevka, ui-monospace, monospace" font-size="15">Explicit quota exhaustion</text>
+  <rect x="1018" y="664" width="230" height="74" rx="18" fill="#f4eadf"/>
+  <text x="1040" y="700" fill="#7c664f" font-family="Iosevka, ui-monospace, monospace" font-size="16" font-weight="700">Monitor</text>
+  <text x="1040" y="726" fill="#52473a" font-family="Iosevka, ui-monospace, monospace" font-size="15">Gateway or source degraded</text>
+</svg>

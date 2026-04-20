@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>CPA Pool Monitor</title>
+    <title>Codex Quota Monitor</title>
     <link rel="stylesheet" href="/monitor.css">
   </head>
   <body>
@@ -11,10 +11,10 @@
       <section class="hero">
         <div class="hero-row">
           <div>
-            <p class="hero-kicker">e-ink View</p>
-            <h1 class="hero-title">CPA Pool</h1>
+            <p class="hero-kicker">Desktop · Mobile · e-ink</p>
+            <h1 class="hero-title">Codex Quota</h1>
           </div>
-          <p class="hero-subtitle">Limit-first monitor for the local Codex account pool.</p>
+          <p class="hero-subtitle">Quota-first dashboard for CLIProxyAPI Codex pools.</p>
         </div>
         <div class="pill-row">
           <span class="pill" id="gateway-pill">Loading gateway</span>
@@ -34,7 +34,7 @@
             </div>
             <div class="status-sub" id="sampled-at">No sample yet</div>
           </div>
-          <p class="status-copy" id="status-text">The dashboard will poll the local CPA management API automatically.</p>
+          <p class="status-copy" id="status-text">The dashboard will poll the local CLIProxyAPI gateway and quota endpoints automatically.</p>
         </section>
 
         <nav class="tab-bar" aria-label="Dashboard tabs">
@@ -84,7 +84,7 @@
     </noscript>
 
     <script>
-      window.CPA_MONITOR_BOOTSTRAP = {
+      window.CODEX_QUOTA_MONITOR_BOOTSTRAP = {
         initialSnapshot: __INITIAL_SNAPSHOT__,
         refreshMs: __REFRESH_MS__
       };
