@@ -106,6 +106,63 @@ function clampPercent(value) {
   return value;
 }
 
+function formatCompactNumber(value) {
+  if (typeof value !== "number" || isNaN(value)) {
+    return "";
+  }
+  if (value >= 1000000) {
+    return (Math.round((value / 1000000) * 10) / 10).toString().replace(/\.0$/, "") + "M";
+  }
+  if (value >= 1000) {
+    return (Math.round((value / 1000) * 10) / 10).toString().replace(/\.0$/, "") + "K";
+  }
+  return String(Math.round(value));
+}
+
+function renderAccountSignals(account) {
+  var parts = [];
+
+  if (account.summary) {
+    parts.push('<span class="account-chip is-status">' + escapeHtml(account.summary) + "</span>");
+  }
+  if (typeof account.sharePercent === "number") {
+    parts.push('<span class="account-chip">' + escapeHtml(String(account.sharePercent) + "% share") + "</span>");
+  }
+  if (typeof account.requests === "number") {
+    parts.push('<span class="account-chip">' + escapeHtml(String(account.requests) + " req") + "</span>");
+  }
+  if (typeof account.tokens === "number") {
+    parts.push('<span class="account-chip">' + escapeHtml(formatCompactNumber(account.tokens) + " tok") + "</span>");
+  }
+  if (typeof account.failed === "number" && account.failed > 0) {
+    parts.push('<span class="account-chip is-issue">' + escapeHtml(String(account.failed) + " fail") + "</span>");
+  }
+
+  return parts.join("");
+}
+
+function shouldShowAccountNote(account) {
+  var note = text(account.note, "");
+  if (!note) {
+    return false;
+  }
+  if (text(account.tone, "good") !== "good") {
+    return true;
+  }
+  return /(resets|failed|not succeeded|waiting for first|unavailable|disabled|missing|error)/i.test(note);
+}
+
+function shouldShowWindowNote(windowData) {
+  var note = text(windowData.note, "");
+  if (!note) {
+    return false;
+  }
+  if (text(windowData.state, "unknown") !== "known") {
+    return true;
+  }
+  return /failed/i.test(note);
+}
+
 function renderMetricCards(targetId, metrics) {
   var safeMetrics = metrics && metrics.length ? metrics : [];
   var htmlParts = [];
@@ -161,9 +218,10 @@ function renderCapacityCards(targetId, windows) {
   setHtml(targetId, htmlParts.join(""));
 }
 
-function renderQuotaLines(windows) {
+function renderQuotaLines(windows, compact) {
   var safeWindows = windows && windows.length ? windows : [];
   var htmlParts = [];
+  var lastVisibleNote = null;
 
   for (var index = 0; index < safeWindows.length; index += 1) {
     var windowData = safeWindows[index] || {};
@@ -173,15 +231,23 @@ function renderQuotaLines(windows) {
     var fillHtml = state === "known" || state === "exhausted"
       ? '<div class="quota-fill" style="width:' + fillWidth + '%"></div>'
       : "";
+    var noteHtml = "";
+    var note = text(windowData.note, "");
+    if (!compact || shouldShowWindowNote(windowData)) {
+      if (!compact || note !== lastVisibleNote) {
+        noteHtml = '<div class="quota-note">' + escapeHtml(note) + "</div>";
+        lastVisibleNote = note;
+      }
+    }
 
     htmlParts.push(
-      '<div class="quota-line">' +
+      '<div class="quota-line' + (compact ? " is-compact" : "") + '">' +
         '<div class="quota-head">' +
           '<span class="quota-label">' + escapeHtml(text(windowData.label, "Window")) + "</span>" +
           '<span class="quota-value">' + escapeHtml(text(windowData.valueText, "Unknown")) + "</span>" +
         "</div>" +
         '<div class="' + escapeHtml(barClass) + '" aria-hidden="true">' + fillHtml + "</div>" +
-        '<div class="quota-note">' + escapeHtml(text(windowData.note, "")) + "</div>" +
+        noteHtml +
       "</div>"
     );
   }
@@ -200,20 +266,27 @@ function renderPoolAccounts(targetId, accounts) {
 
   for (var index = 0; index < safeAccounts.length; index += 1) {
     var account = safeAccounts[index] || {};
-    var noteHtml = account.note ? '<p class="account-note">' + escapeHtml(account.note) + "</p>" : "";
+    var title = text(account.title, "Unknown account");
+    var badge = text(account.badge, "");
+    var badgeHtml = badge ? '<span class="account-badge">' + escapeHtml(badge) + "</span>" : "";
+    var signalsHtml = renderAccountSignals(account);
+    var meta = text(account.meta, "");
+    var metaHtml = meta ? '<p class="account-meta">' + escapeHtml(meta) + "</p>" : "";
+    var noteHtml = shouldShowAccountNote(account)
+      ? '<p class="account-note">' + escapeHtml(text(account.note, "")) + "</p>"
+      : "";
     htmlParts.push(
       '<article class="account account-' + escapeHtml(text(account.tone, "good")) + '">' +
         '<div class="account-head">' +
-          '<div>' +
-            '<h3 class="account-title">' + escapeHtml(text(account.title, "Unknown account")) + "</h3>" +
-            '<p class="account-summary">' + escapeHtml(text(account.summary, "")) + "</p>" +
+          '<div class="account-title-wrap">' +
+            '<h3 class="account-title" title="' + escapeHtml(title) + '">' + escapeHtml(title) + "</h3>" +
           '</div>' +
-          '<span class="account-badge">' + escapeHtml(text(account.badge, "")) + "</span>" +
+          badgeHtml +
         "</div>" +
-        '<p class="account-meta">' + escapeHtml(text(account.meta, "")) + "</p>" +
-        '<p class="account-traffic">' + escapeHtml(text(account.trafficText, "")) + "</p>" +
+        '<div class="account-signals">' + signalsHtml + "</div>" +
+        metaHtml +
         noteHtml +
-        '<div class="quota-grid">' + renderQuotaLines(account.windows || []) + "</div>" +
+        '<div class="quota-grid">' + renderQuotaLines(account.windows || [], true) + "</div>" +
       "</article>"
     );
   }
