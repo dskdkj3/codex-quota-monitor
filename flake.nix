@@ -16,10 +16,12 @@
       forAllSystems = lib.genAttrs systems;
       mkPkgs = system: import nixpkgs { inherit system; };
       mkPackage = system: (mkPkgs system).callPackage ./default.nix { };
-      mkApp = package: {
-        type = "app";
-        program = "${package}/bin/codex-quota-monitor";
-      };
+      mkApp =
+        package: program:
+        {
+          type = "app";
+          program = "${package}/bin/${program}";
+        };
     in
     {
       packages = forAllSystems (
@@ -39,8 +41,9 @@
           package = mkPackage system;
         in
         {
-          default = mkApp package;
-          codex-quota-monitor = mkApp package;
+          default = mkApp package "codex-quota-monitor";
+          codex-quota-monitor = mkApp package "codex-quota-monitor";
+          codex-quota-benchmark = mkApp package "codex-quota-benchmark";
         }
       );
 

@@ -54,3 +54,7 @@ curl -fsS http://127.0.0.1:4515/api/status | jq '.summary'
 ```
 
 进程起来之后，在浏览器打开 `http://127.0.0.1:4515/`。
+
+## Benchmark
+
+如果你还想测 `fast` 相对 baseline 的表现，或者想把 Team 的 quota 容量折算成 Plus 单位，见 [Benchmark 指南](benchmark.zh-CN.md)。

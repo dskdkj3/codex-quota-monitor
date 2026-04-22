@@ -16,6 +16,7 @@
 ## 快速入口
 
 - 给人类： [快速开始](docs/quick-start.zh-CN.md)
+- Benchmark： [Benchmark 指南](docs/benchmark.zh-CN.md)
 - 给 Agent： [让 Agent 自动部署](docs/deploy-with-agent.zh-CN.md)
 - 给 NixOS 运维： [NixOS 模块说明](docs/nixos-module.zh-CN.md)
 
@@ -46,6 +47,19 @@ codex-quota-monitor \
 
 然后打开 `http://127.0.0.1:4515/`。
 
+## 跑 Benchmark
+
+如果你想拿到 `fast` 相对 baseline 的硬数据，或者想把 Team 账号的 quota 容量换算成 Plus 单位，可以直接跑：
+
+```bash
+codex-quota-benchmark \
+  --management-base-url http://127.0.0.1:8318 \
+  --team-selector team-auth-file-name.json \
+  --plus-selector plus-auth-file-name.json
+```
+
+完整流程、selector 规则和输出文件解释见 [Benchmark 指南](docs/benchmark.zh-CN.md)。
+
 ## 这个项目依赖什么上游
 
 - 一个可访问的 `CLIProxyAPI` management gateway，通常是 `http://127.0.0.1:8318`
@@ -62,4 +76,5 @@ codex-quota-monitor \
 python -m unittest discover -s tests -v
 nix build .#codex-quota-monitor
 nix run .#codex-quota-monitor -- --help
+nix run .#codex-quota-benchmark -- --help
 ```

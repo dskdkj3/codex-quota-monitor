@@ -16,6 +16,7 @@ Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth p
 ## Quick Links
 
 - Humans: [Quick start](docs/quick-start.md)
+- Benchmarking: [Benchmark guide](docs/benchmark.md)
 - Agents: [Deploy with an agent](docs/deploy-with-agent.md)
 - NixOS operators: [NixOS module](docs/nixos-module.md)
 
@@ -46,6 +47,19 @@ codex-quota-monitor \
 
 Then open `http://127.0.0.1:4515/`.
 
+## Benchmark The Pool
+
+When you want hard numbers for `fast` versus baseline, or Team versus Plus quota capacity, run:
+
+```bash
+codex-quota-benchmark \
+  --management-base-url http://127.0.0.1:8318 \
+  --team-selector team-auth-file-name.json \
+  --plus-selector plus-auth-file-name.json
+```
+
+The full workflow, selector rules, and output files are documented in [Benchmark guide](docs/benchmark.md).
+
 ## What The Monitor Needs
 
 - A reachable `CLIProxyAPI` management gateway, usually something like `http://127.0.0.1:8318`
@@ -62,4 +76,5 @@ If you want Codex, Claude, or another agent to wire this into an existing NixOS 
 python -m unittest discover -s tests -v
 nix build .#codex-quota-monitor
 nix run .#codex-quota-monitor -- --help
+nix run .#codex-quota-benchmark -- --help
 ```

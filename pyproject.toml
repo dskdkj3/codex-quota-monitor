@@ -26,6 +26,7 @@ dependencies = []
 
 [project.scripts]
 codex-quota-monitor = "codex_quota_monitor.cli:main"
+codex-quota-benchmark = "codex_quota_monitor.benchmark:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

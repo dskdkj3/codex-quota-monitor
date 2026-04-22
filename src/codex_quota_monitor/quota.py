@@ -71,9 +71,11 @@ def parse_quota_window(window_payload):
             return None
         remaining = 100.0 - used
 
-    percent = max(0, min(100, int(round(remaining))))
+    remaining_percent = max(0.0, min(100.0, float(remaining)))
+    percent = max(0, min(100, int(round(remaining_percent))))
     return {
         "id": window_id,
+        "remainingPercent": remaining_percent,
         "percent": percent,
         "resetAt": parse_quota_timestamp(window_payload.get("reset_at") or window_payload.get("resets_at")),
     }
@@ -119,6 +121,34 @@ def parse_quota_usage_payload(payload):
         "planType": plan_type,
         "windows": windows,
     }
+
+
+def load_auth_payload(path):
+    with open(path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def fetch_usage_payload(access_token, account_id, *, usage_url=DIRECT_USAGE_URL, timeout_seconds=5):
+    request = urllib.request.Request(
+        usage_url,
+        headers={
+            "Accept": "application/json",
+            "Authorization": "Bearer " + access_token,
+            "Cache-Control": "no-store",
+            "User-Agent": USER_AGENT,
+        },
+    )
+    if account_id:
+        request.add_header("ChatGPT-Account-Id", account_id)
+
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            charset = response.headers.get_content_charset() or "utf-8"
+            return json.loads(response.read().decode(charset))
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace") if exc.fp is not None else ""
+        detail = compact_error(body or exc.reason or "")
+        raise RuntimeError(f"usage query returned HTTP {exc.code}: {detail}") from exc
 
 
 def quota_sample_age_seconds(sample, reference_time):
@@ -290,27 +320,12 @@ class QuotaSampler:
             return error_text
 
     def _load_auth_payload(self, path):
-        with open(path, "r", encoding="utf-8") as handle:
-            return json.load(handle)
+        return load_auth_payload(path)
 
     def _fetch_usage_payload(self, access_token, account_id):
-        request = urllib.request.Request(
-            self.usage_url,
-            headers={
-                "Accept": "application/json",
-                "Authorization": "Bearer " + access_token,
-                "Cache-Control": "no-store",
-                "User-Agent": USER_AGENT,
-            },
+        return fetch_usage_payload(
+            access_token,
+            account_id,
+            usage_url=self.usage_url,
+            timeout_seconds=self.timeout_seconds,
         )
-        if account_id:
-            request.add_header("ChatGPT-Account-Id", account_id)
-
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                charset = response.headers.get_content_charset() or "utf-8"
-                return json.loads(response.read().decode(charset))
-        except HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="replace") if exc.fp is not None else ""
-            detail = compact_error(body or exc.reason or "")
-            raise RuntimeError(f"usage query returned HTTP {exc.code}: {detail}") from exc

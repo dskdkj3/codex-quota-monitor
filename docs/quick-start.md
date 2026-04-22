@@ -56,3 +56,7 @@ curl -fsS http://127.0.0.1:4515/api/status | jq '.summary'
 ```
 
 Open `http://127.0.0.1:4515/` in a browser after the process starts.
+
+## Benchmarking
+
+If you also want to benchmark `fast` versus baseline, or Team versus Plus quota capacity, see [Benchmark guide](benchmark.md).
