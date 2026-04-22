@@ -134,9 +134,6 @@ function renderAccountSignals(account) {
   if (typeof account.tokens === "number") {
     parts.push('<span class="account-chip">' + escapeHtml(formatCompactNumber(account.tokens) + " tok") + "</span>");
   }
-  if (typeof account.failed === "number" && account.failed > 0) {
-    parts.push('<span class="account-chip is-issue">' + escapeHtml(String(account.failed) + " fail") + "</span>");
-  }
 
   return parts.join("");
 }

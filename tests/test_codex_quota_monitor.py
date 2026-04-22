@@ -495,6 +495,32 @@ class PageRenderingTests(unittest.TestCase):
         self.assertIn(">Traffic<", page)
         self.assertIn(">Alerts<", page)
 
+    def test_monitor_js_no_longer_renders_failed_chip(self):
+        snapshot = MODULE.build_unavailable_snapshot("usage: timed out")
+        monitor = DummyMonitor(snapshot)
+        MODULE.MonitorRequestHandler.monitor = monitor
+        server = ThreadingHTTPServer(("127.0.0.1", 0), MODULE.MonitorRequestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{server.server_port}/monitor.js", timeout=5) as response:
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.headers.get_content_type(), "application/javascript")
+                script = response.read().decode("utf-8")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+        render_signals = script.split("function renderAccountSignals(account) {", 1)[1].split(
+            "function shouldShowAccountNote(account) {", 1
+        )[0]
+        self.assertIn('String(account.requests) + " req"', render_signals)
+        self.assertIn('formatCompactNumber(account.tokens) + " tok"', render_signals)
+        self.assertNotIn("account.failed", render_signals)
+        self.assertNotIn('" fail"', render_signals)
+
 
 class DummyMonitor:
     def __init__(self, snapshot, refresh_seconds=15):
