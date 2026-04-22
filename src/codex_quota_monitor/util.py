@@ -96,7 +96,7 @@ def format_share_percent(metric_value, total_value):
 
 def format_fractional_count(value):
     number = float(value or 0.0)
-    return f"{number:.1f}"
+    return f"{number:.2f}"
 
 
 def count_label(value, noun):

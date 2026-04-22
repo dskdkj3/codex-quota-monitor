@@ -15,9 +15,9 @@
   <rect x="860" y="186" width="112" height="44" rx="22" fill="#3a342d"/>
   <text x="891" y="214" fill="#efe9dc" font-family="Iosevka, ui-monospace, monospace" font-size="18">Gateway</text>
   <rect x="986" y="186" width="98" height="44" rx="22" fill="#6f8251"/>
-  <text x="1022" y="214" fill="#fffdf8" font-family="Iosevka, ui-monospace, monospace" font-size="18">5h 0.3</text>
+  <text x="1018" y="214" fill="#fffdf8" font-family="Iosevka, ui-monospace, monospace" font-size="18">5h 0.30</text>
   <rect x="1098" y="186" width="112" height="44" rx="22" fill="#5f7257"/>
-  <text x="1121" y="214" fill="#fffdf8" font-family="Iosevka, ui-monospace, monospace" font-size="18">Week 0.8</text>
+  <text x="1116" y="214" fill="#fffdf8" font-family="Iosevka, ui-monospace, monospace" font-size="18">Week 0.80</text>
   <rect x="1224" y="186" width="88" height="44" rx="22" fill="#89574b"/>
   <text x="1248" y="214" fill="#fffdf8" font-family="Iosevka, ui-monospace, monospace" font-size="18">2 alerts</text>
 
@@ -33,10 +33,10 @@
   <text x="156" y="564" fill="#63594c" font-family="Iosevka, ui-monospace, monospace" font-size="18">3 Plus · 1 Non-Plus · 2 issues</text>
   <rect x="156" y="598" width="150" height="128" rx="20" fill="#f2ebdd"/>
   <text x="178" y="634" fill="#52473a" font-family="Iosevka, ui-monospace, monospace" font-size="16">5h Capacity</text>
-  <text x="178" y="688" fill="#241f1a" font-family="Georgia, serif" font-size="40" font-weight="700">0.3 Plus</text>
+  <text x="178" y="688" fill="#241f1a" font-family="Georgia, serif" font-size="40" font-weight="700">0.30 Plus</text>
   <rect x="326" y="598" width="150" height="128" rx="20" fill="#f2ebdd"/>
   <text x="348" y="634" fill="#52473a" font-family="Iosevka, ui-monospace, monospace" font-size="16">Weekly</text>
-  <text x="348" y="688" fill="#241f1a" font-family="Georgia, serif" font-size="40" font-weight="700">0.8 Plus</text>
+  <text x="348" y="688" fill="#241f1a" font-family="Georgia, serif" font-size="40" font-weight="700">0.80 Plus</text>
   <rect x="496" y="598" width="118" height="128" rx="20" fill="#f7efe2"/>
   <text x="518" y="634" fill="#52473a" font-family="Iosevka, ui-monospace, monospace" font-size="16">Status</text>
   <text x="518" y="688" fill="#9b5b49" font-family="Iosevka, ui-monospace, monospace" font-size="24" font-weight="700">Quota hit</text>

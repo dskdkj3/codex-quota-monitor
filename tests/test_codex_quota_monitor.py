@@ -289,15 +289,15 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertTrue(snapshot["available"])
         self.assertEqual(snapshot["source"], "partial")
         self.assertEqual(snapshot["summary"]["poolPill"], "2 Plus · 1 Non-Plus")
-        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.3 Plus")
-        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.8 Plus")
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.30 Plus")
+        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.80 Plus")
         self.assertEqual(snapshot["summary"]["subline"], "Round Robin + Sticky · 4 req · 3.2K tok")
         self.assertEqual(snapshot["summary"]["alertsPill"], "2 alerts")
 
         pool_tab = snapshot["tabs"]["pool"]
         self.assertEqual(pool_tab["title"], "Pool Capacity")
         self.assertEqual(pool_tab["summary"], "2 Plus · 1 Non-Plus · 2 healthy · 1 issues")
-        self.assertEqual(pool_tab["capacityWindows"][0]["knownUnitsText"], "0.3 Plus")
+        self.assertEqual(pool_tab["capacityWindows"][0]["knownUnitsText"], "0.30 Plus")
         self.assertIn("Unclassified 1", pool_tab["capacityWindows"][0]["summary"])
         self.assertEqual(pool_tab["accounts"][0]["title"], "account-slot")
         self.assertEqual(pool_tab["accounts"][0]["statusLabel"], "Quota hit")
@@ -389,12 +389,12 @@ class DashboardSnapshotTests(unittest.TestCase):
         )
 
         self.assertEqual(snapshot["summary"]["poolPill"], "1 Plus · 1 Non-Plus")
-        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.4 Plus")
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.40 Plus")
         enterprise_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["title"] == "account-slot")
         self.assertEqual(enterprise_account["windows"][0]["valueText"], "Unknown")
         self.assertIn("Waiting for first direct sample.", enterprise_account["windows"][0]["note"])
         self.assertIn("Enterprise plan is excluded from Plus 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
-        self.assertEqual(snapshot["tabs"]["pool"]["capacityWindows"][0]["knownUnitsText"], "0.4 Plus")
+        self.assertEqual(snapshot["tabs"]["pool"]["capacityWindows"][0]["knownUnitsText"], "0.40 Plus")
 
     def test_build_dashboard_snapshot_flags_non_plus_direct_exhaustion_without_affecting_plus_capacity(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
@@ -460,8 +460,8 @@ class DashboardSnapshotTests(unittest.TestCase):
             sampled_at=sampled_at,
         )
 
-        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.5 Plus")
-        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.8 Plus")
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.50 Plus")
+        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.80 Plus")
         enterprise_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["title"] == "account-slot")
         self.assertEqual(enterprise_account["statusLabel"], "Quota hit")
         self.assertEqual(enterprise_account["windows"][0]["valueText"], "0%")
