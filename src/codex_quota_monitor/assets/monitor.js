@@ -366,20 +366,33 @@ function renderTabIfChanged(name, tabData, renderFn) {
   renderFn(tabData || {});
 }
 
+function normalizedFastState(fastMode) {
+  var state = text((fastMode || {}).state, "unknown");
+  if (!/^(on|off|inherit|unknown)$/.test(state)) {
+    return "unknown";
+  }
+  return state;
+}
+
 function renderSnapshot(snapshot) {
   var safeSnapshot = snapshot || {};
   var summary = safeSnapshot.summary || {};
   var tabs = safeSnapshot.tabs || {};
+  var fastMode = safeSnapshot.fastMode || {};
+  var fastState = normalizedFastState(fastMode);
 
   setText("gateway-pill", summary.gatewayPill, "Gateway unknown");
+  setText("fast-pill", summary.fastPill, "Fast unknown");
   setText("five-hour-pill", summary.fiveHourPill, "5h unknown");
   setText("weekly-pill", summary.weeklyPill, "Weekly unknown");
   setText("alerts-pill", summary.alertsPill, "Alerts unknown");
   setText("hero-subline", summary.subline, "Waiting for usage totals.");
+  setClassName("fast-pill", "pill pill-fast pill-fast-" + fastState);
 
   setText("source-text", safeSnapshot.sourceText, "No snapshot");
   setText("sampled-at", safeSnapshot.sampledAtText, "No sample yet");
   setText("status-text", safeSnapshot.statusText, "No status available");
+  setText("fast-detail", fastMode.detail, "Fast status needs a successful CPA config sample.");
 
   if (!safeSnapshot.available || safeSnapshot.source !== "live") {
     setClassName("status-panel", "panel status-panel is-alert");

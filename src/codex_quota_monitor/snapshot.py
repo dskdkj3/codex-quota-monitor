@@ -284,6 +284,59 @@ def routing_state(config_payload):
     }
 
 
+def fast_mode_state(config_payload, endpoint_errors=None):
+    endpoint_errors = endpoint_errors or []
+    config_error = any(str(item).startswith(("routing:", "config:")) for item in endpoint_errors)
+    codex = (config_payload or {}).get("codex") or {}
+    raw_policy = str(codex.get("service-tier-policy") or "").strip()
+    policy = raw_policy.lower()
+
+    if policy == "force-priority":
+        return {
+            "state": "on",
+            "policy": "force-priority",
+            "isEnabled": True,
+            "label": "Fast On",
+            "pill": "Fast On",
+            "detail": "CPA forces service_tier=priority for subsequent new Codex requests.",
+        }
+    if policy == "force-default":
+        return {
+            "state": "off",
+            "policy": "force-default",
+            "isEnabled": False,
+            "label": "Fast Off",
+            "pill": "Fast Off",
+            "detail": "CPA strips service_tier from subsequent new Codex requests.",
+        }
+    if not policy or policy == "inherit":
+        if config_error:
+            return {
+                "state": "unknown",
+                "policy": "unknown",
+                "isEnabled": False,
+                "label": "Fast Unknown",
+                "pill": "Fast Unknown",
+                "detail": "Fast status needs a successful CPA config sample.",
+            }
+        return {
+            "state": "inherit",
+            "policy": "inherit",
+            "isEnabled": False,
+            "label": "Fast Inherit",
+            "pill": "Fast Inherit",
+            "detail": "CPA is not forcing fast on or off. Subsequent new Codex requests follow the client request.",
+        }
+    return {
+        "state": "unknown",
+        "policy": raw_policy or "unknown",
+        "isEnabled": False,
+        "label": "Fast Unknown",
+        "pill": "Fast Unknown",
+        "detail": f"CPA reported an unsupported fast policy: {raw_policy}.",
+    }
+
+
 def build_usage_index(usage_payload):
     usage_root = (usage_payload or {}).get("usage") or {}
     accounts = {}
@@ -1078,6 +1131,7 @@ def build_dashboard_snapshot(
     gateway_ok = str((health_payload or {}).get("status") or "").lower() == "ok"
     usage_stats_enabled = bool((usage_stats_payload or {}).get("usage-statistics-enabled"))
     routing = routing_state(routing_payload)
+    fast_mode = fast_mode_state(routing_payload, endpoint_errors)
     auth_alert_items = build_auth_alert_items(contexts, sampled_at)
     quota_status = quota_status_text(quota_payload)
     quota_source = quota_status_source_text(quota_payload)
@@ -1126,12 +1180,14 @@ def build_dashboard_snapshot(
         "error": "; ".join(endpoint_errors) if endpoint_errors else None,
         "summary": {
             "gatewayPill": "Gateway OK" if gateway_ok else "Gateway down",
+            "fastPill": fast_mode["pill"],
             "poolPill": f"{plan_counts['plus']} Plus · {non_plus_total} Non-Plus",
             "fiveHourPill": capacity_windows[0]["pillText"] if capacity_windows else "5h unknown",
             "weeklyPill": capacity_windows[1]["pillText"] if len(capacity_windows) > 1 else "Weekly unknown",
             "alertsPill": "Clean" if alerts["alertCount"] == 0 else count_label(alerts["alertCount"], "alert"),
             "subline": f"{routing['text']} · {format_count(total_requests)} req · {format_tokens(total_tokens)} tok",
         },
+        "fastMode": fast_mode,
         "tabs": {
             "pool": {
                 "title": "Pool Capacity",
@@ -1194,11 +1250,20 @@ def build_unavailable_snapshot(error_text):
         "error": message,
         "summary": {
             "gatewayPill": "Gateway unknown",
+            "fastPill": "Fast Unknown",
             "poolPill": "Pool unavailable",
             "fiveHourPill": "5h unknown",
             "weeklyPill": "Weekly unknown",
             "alertsPill": count_label(alerts["alertCount"], "alert"),
             "subline": "Waiting for auth-files and usage data.",
+        },
+        "fastMode": {
+            "state": "unknown",
+            "policy": "unknown",
+            "isEnabled": False,
+            "label": "Fast Unknown",
+            "pill": "Fast Unknown",
+            "detail": "Fast status needs a successful CPA config sample.",
         },
         "tabs": {
             "pool": dict(

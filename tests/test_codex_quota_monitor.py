@@ -276,7 +276,10 @@ class DashboardSnapshotTests(unittest.TestCase):
                     "strategy": "round-robin",
                     "session-affinity": True,
                     "session-affinity-ttl": "1h",
-                }
+                },
+                "codex": {
+                    "service-tier-policy": "force-priority",
+                },
             },
             usage_stats_payload={"usage-statistics-enabled": True},
             request_log_payload={"request-log": True},
@@ -289,10 +292,15 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertTrue(snapshot["available"])
         self.assertEqual(snapshot["source"], "partial")
         self.assertEqual(snapshot["summary"]["poolPill"], "2 Plus · 1 Non-Plus")
+        self.assertEqual(snapshot["summary"]["fastPill"], "Fast On")
         self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.30 Plus")
         self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.80 Plus")
         self.assertEqual(snapshot["summary"]["subline"], "Round Robin + Sticky · 4 req · 3.2K tok")
         self.assertEqual(snapshot["summary"]["alertsPill"], "2 alerts")
+        self.assertEqual(snapshot["fastMode"]["state"], "on")
+        self.assertEqual(snapshot["fastMode"]["policy"], "force-priority")
+        self.assertTrue(snapshot["fastMode"]["isEnabled"])
+        self.assertIn("service_tier=priority", snapshot["fastMode"]["detail"])
 
         pool_tab = snapshot["tabs"]["pool"]
         self.assertEqual(pool_tab["title"], "Pool Capacity")
@@ -396,6 +404,54 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertIn("Enterprise plan is excluded from Plus 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
         self.assertEqual(snapshot["tabs"]["pool"]["capacityWindows"][0]["knownUnitsText"], "0.40 Plus")
 
+    def test_build_dashboard_snapshot_exposes_inherit_and_unknown_fast_states(self):
+        sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
+        base_usage = {"usage": {"total_requests": 0, "success_count": 0, "failure_count": 0, "total_tokens": 0, "apis": {}}}
+        base_quota = {
+            "status": "idle",
+            "eligibleCount": 0,
+            "sampledCount": 0,
+            "freshCount": 0,
+            "staleCount": 0,
+            "cycleSeconds": 15,
+            "completedCycle": False,
+            "degraded": False,
+            "attemptedKey": None,
+            "attemptError": None,
+            "samples": {},
+        }
+        inherit_snapshot = MODULE.build_dashboard_snapshot(
+            health_payload={"status": "ok"},
+            auth_files_payload={"files": []},
+            usage_payload=base_usage,
+            quota_payload=base_quota,
+            routing_payload={"routing": {"strategy": "round-robin"}},
+            usage_stats_payload={"usage-statistics-enabled": True},
+            request_log_payload={"request-log": True},
+            logs_payload={"lines": []},
+            sampled_at=sampled_at,
+        )
+        unknown_snapshot = MODULE.build_dashboard_snapshot(
+            health_payload={"status": "ok"},
+            auth_files_payload={"files": []},
+            usage_payload=base_usage,
+            quota_payload=base_quota,
+            routing_payload={"routing": {"strategy": "round-robin"}},
+            usage_stats_payload={"usage-statistics-enabled": True},
+            request_log_payload={"request-log": True},
+            logs_payload={"lines": []},
+            sampled_at=sampled_at,
+            endpoint_errors=["routing: timed out"],
+            source="partial",
+        )
+
+        self.assertEqual(inherit_snapshot["fastMode"]["state"], "inherit")
+        self.assertEqual(inherit_snapshot["summary"]["fastPill"], "Fast Inherit")
+        self.assertIn("not forcing fast", inherit_snapshot["fastMode"]["detail"])
+        self.assertEqual(unknown_snapshot["fastMode"]["state"], "unknown")
+        self.assertEqual(unknown_snapshot["summary"]["fastPill"], "Fast Unknown")
+        self.assertIn("successful CPA config sample", unknown_snapshot["fastMode"]["detail"])
+
     def test_build_dashboard_snapshot_flags_non_plus_direct_exhaustion_without_affecting_plus_capacity(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
         snapshot = MODULE.build_dashboard_snapshot(
@@ -488,6 +544,7 @@ class PageRenderingTests(unittest.TestCase):
         self.assertIn('src="/monitor.js"', page)
         self.assertNotIn('http-equiv="refresh"', page)
         self.assertIn("CODEX_QUOTA_MONITOR_BOOTSTRAP", page)
+        self.assertIn('id="fast-pill"', page)
         self.assertIn('id="five-hour-pill"', page)
         self.assertIn('id="pool-capacity"', page)
         self.assertIn('id="pool-accounts"', page)
@@ -556,6 +613,7 @@ class HandlerTests(unittest.TestCase):
             self.assertEqual(response.headers.get_content_type(), "application/json")
             payload = json.loads(response.read().decode("utf-8"))
             self.assertEqual(payload["source"], "unavailable")
+            self.assertEqual(payload["fastMode"]["state"], "unknown")
             self.assertEqual(payload["summary"]["poolPill"], "Pool unavailable")
             self.assertEqual(payload["tabs"]["alerts"]["items"][0]["badge"], "Monitor")
 
