@@ -11,7 +11,8 @@
 - `Pool`：`5h` / `weekly` 已知 Plus 容量、紧凑账号卡片，以及可见但不计入 Plus 总量的非 Plus 账号
 - `Traffic`：来自 `CLIProxyAPI` usage 的请求数、成功率、token 和账号分摊
 - `Alerts`：只保留硬 auth 故障、明确 quota exhausted、以及 monitor / 数据源降级
-- `Status`：gateway 连通性，以及当前 CPA fast override 状态（`On`、`Off`、`Inherit` 或 `Unknown`）
+- `Status`：gateway 连通性，以及当前 CPA 快照/刷新状态
+- `Pool`：Plus / Non-Plus 总量、`5h` / `weekly` 容量，以及当前 CPA fast override 状态（`On`、`Off`、`Inherit` 或 `Unknown`）
 - `适配设备`：桌面浏览器、手机浏览器、e-ink 等小屏或慢刷新的浏览器
 
 ## 快速入口

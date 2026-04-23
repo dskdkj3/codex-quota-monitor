@@ -1101,6 +1101,18 @@ def build_alert_section(items):
     }
 
 
+def is_dashboard_auth_file(auth_file):
+    provider = normalize_key((auth_file or {}).get("provider") or (auth_file or {}).get("type"))
+    if provider and provider != "unknown":
+        return True
+    if (auth_file or {}).get("id_token") or (auth_file or {}).get("plan_type"):
+        return True
+    for field in ("email", "account", "label"):
+        if str((auth_file or {}).get(field) or "").strip():
+            return True
+    return False
+
+
 def build_dashboard_snapshot(
     *,
     health_payload,
@@ -1115,7 +1127,7 @@ def build_dashboard_snapshot(
     endpoint_errors=None,
     source="live",
 ):
-    auth_files = list((auth_files_payload or {}).get("files") or [])
+    auth_files = [auth_file for auth_file in ((auth_files_payload or {}).get("files") or []) if is_dashboard_auth_file(auth_file)]
     usage_index = build_usage_index(usage_payload)
     contexts, plan_counts = build_account_contexts(auth_files, usage_index, sampled_at, quota_payload)
     pool_accounts = build_pool_accounts(contexts)
@@ -1169,6 +1181,9 @@ def build_dashboard_snapshot(
     hard_issue_count = sum(1 for context in contexts if context["issueKind"] == "auth")
     quota_issue_count = sum(1 for context in contexts if context["issueKind"] == "quota")
     non_plus_total = plan_counts["team"] + plan_counts["other"]
+    fast_value = fast_mode["label"]
+    if fast_value.startswith("Fast "):
+        fast_value = fast_value[5:]
 
     return {
         "available": True,
@@ -1195,7 +1210,7 @@ def build_dashboard_snapshot(
                 "stats": [
                     {"label": "Plus", "value": str(plus_total), "detail": "accounts counted in capacity windows"},
                     {"label": "Non-Plus", "value": str(non_plus_total), "detail": "shown in the grid, excluded from Plus capacity"},
-                    {"label": "Issues", "value": str(hard_issue_count + quota_issue_count), "detail": "hard auth failures and quota hits"},
+                    {"label": "Fast", "value": fast_value, "detail": fast_mode["detail"]},
                     {"label": "Routing", "value": routing["text"], "detail": routing["detail"]},
                 ],
                 "capacityWindows": capacity_windows,

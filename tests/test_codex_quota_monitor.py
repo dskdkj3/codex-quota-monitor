@@ -305,6 +305,9 @@ class DashboardSnapshotTests(unittest.TestCase):
         pool_tab = snapshot["tabs"]["pool"]
         self.assertEqual(pool_tab["title"], "Pool Capacity")
         self.assertEqual(pool_tab["summary"], "2 Plus · 1 Non-Plus · 2 healthy · 1 issues")
+        self.assertEqual(pool_tab["stats"][2]["label"], "Fast")
+        self.assertEqual(pool_tab["stats"][2]["value"], "On")
+        self.assertIn("service_tier=priority", pool_tab["stats"][2]["detail"])
         self.assertEqual(pool_tab["capacityWindows"][0]["knownUnitsText"], "0.30 Plus")
         self.assertIn("Unclassified 1", pool_tab["capacityWindows"][0]["summary"])
         self.assertEqual(pool_tab["accounts"][0]["title"], "account-slot")
@@ -524,6 +527,57 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertIn("Enterprise plan is excluded from Plus 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
         self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][1]["value"], "1")
 
+    def test_build_dashboard_snapshot_filters_unknown_non_auth_json_entries(self):
+        sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
+        snapshot = MODULE.build_dashboard_snapshot(
+            health_payload={"status": "ok"},
+            auth_files_payload={
+                "files": [
+                    {
+                        "auth_index": "acct-plus",
+                        "label": "account-slot",
+                        "provider": "codex",
+                        "type": "codex",
+                        "status": "active",
+                        "updated_at": "2026-04-20T12:20:00+08:00",
+                        "id_token": {"plan_type": "plus"},
+                    },
+                    {
+                        "auth_index": "snapshot-file",
+                        "name": "usage-snapshot.json",
+                        "id": "usage-snapshot.json",
+                        "provider": "unknown",
+                        "type": "unknown",
+                        "status": "active",
+                        "updated_at": "2026-04-20T12:21:00+08:00",
+                    },
+                ]
+            },
+            usage_payload={"usage": {"total_requests": 0, "success_count": 0, "failure_count": 0, "total_tokens": 0, "apis": {}}},
+            quota_payload={
+                "status": "warming",
+                "eligibleCount": 1,
+                "sampledCount": 0,
+                "freshCount": 0,
+                "staleCount": 0,
+                "cycleSeconds": 15,
+                "completedCycle": False,
+                "degraded": False,
+                "attemptedKey": None,
+                "attemptError": None,
+                "samples": {},
+            },
+            routing_payload={"routing": {"strategy": "round-robin"}},
+            usage_stats_payload={"usage-statistics-enabled": True},
+            request_log_payload={"request-log": True},
+            logs_payload={"lines": []},
+            sampled_at=sampled_at,
+        )
+
+        self.assertEqual(snapshot["summary"]["poolPill"], "1 Plus · 0 Non-Plus")
+        self.assertEqual([account["title"] for account in snapshot["tabs"]["pool"]["accounts"]], ["account-slot"])
+        self.assertEqual([item["title"] for item in snapshot["tabs"]["traffic"]["distribution"]], ["account-slot"])
+
     def test_build_unavailable_snapshot_has_monitor_alert(self):
         snapshot = MODULE.build_unavailable_snapshot("auth-files: connection refused")
 
@@ -544,7 +598,7 @@ class PageRenderingTests(unittest.TestCase):
         self.assertIn('src="/monitor.js"', page)
         self.assertNotIn('http-equiv="refresh"', page)
         self.assertIn("CODEX_QUOTA_MONITOR_BOOTSTRAP", page)
-        self.assertIn('id="fast-pill"', page)
+        self.assertNotIn('id="fast-pill"', page)
         self.assertIn('id="five-hour-pill"', page)
         self.assertIn('id="pool-capacity"', page)
         self.assertIn('id="pool-accounts"', page)
