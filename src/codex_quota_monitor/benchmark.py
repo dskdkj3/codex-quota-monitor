@@ -533,6 +533,15 @@ def compute_window_drop(before_window, after_window):
     return {"valid": True, "reason": "", "drop": round(drop, 6)}
 
 
+def exhausted_windows(sample):
+    exhausted = []
+    for window_id, window in (sample.get("windows") or {}).items():
+        remaining = window.get("remainingPercent")
+        if remaining is not None and float(remaining) <= 0.0:
+            exhausted.append(window_id)
+    return sorted(exhausted)
+
+
 def summarize_performance(records):
     summary = {}
     by_tier = {}
@@ -622,6 +631,8 @@ def perform_quota_runs(args, team_gateway, plus_gateways, prompt_cases, request_
     tier_label = "fast" if args.quota_service_tier == "fast" else "baseline"
     accumulators = {"team": {}, "plus": {}}
     quota_batches = []
+    stop_reason = ""
+    team_exhaustion = None
 
     for round_index in range(1, args.quota_max_rounds + 1):
         participants = [("team", team_gateway)] + [("plus", gateway) for gateway in plus_gateways]
@@ -661,6 +672,21 @@ def perform_quota_runs(args, team_gateway, plus_gateways, prompt_cases, request_
                 "windows": windows,
             }
             quota_batches.append(batch)
+            if role == "team":
+                exhausted = exhausted_windows(after)
+                if exhausted:
+                    stop_reason = "team-quota-exhausted"
+                    team_exhaustion = {
+                        "round_index": round_index,
+                        "auth_index": gateway.account.auth_index,
+                        "label": gateway.account.label,
+                        "windows": exhausted,
+                    }
+                    batch["stopReason"] = stop_reason
+                    break
+
+        if stop_reason:
+            break
 
         plus_5h_values = [
             accumulators["plus"].get(gateway.account.auth_index, {}).get("5h", 0.0)
@@ -679,12 +705,23 @@ def perform_quota_runs(args, team_gateway, plus_gateways, prompt_cases, request_
             and team_5h_value > 0.0
             and team_week_value > 0.0
         ):
+            stop_reason = "thresholds-met"
             break
 
-    return build_quota_summary(team_gateway, plus_gateways, accumulators, quota_batches)
+    if not stop_reason:
+        stop_reason = "max-rounds"
+
+    return build_quota_summary(
+        team_gateway,
+        plus_gateways,
+        accumulators,
+        quota_batches,
+        stop_reason=stop_reason,
+        team_exhaustion=team_exhaustion,
+    )
 
 
-def build_quota_summary(team_gateway, plus_gateways, accumulators, quota_batches):
+def build_quota_summary(team_gateway, plus_gateways, accumulators, quota_batches, *, stop_reason="", team_exhaustion=None):
     team_key = team_gateway.account.auth_index
     team_windows = accumulators.get("team", {}).get(team_key, {})
     per_plus = []
@@ -723,6 +760,9 @@ def build_quota_summary(team_gateway, plus_gateways, accumulators, quota_batches
     return {
         "team_auth_index": team_key,
         "team_label": team_gateway.account.label,
+        "stopReason": stop_reason,
+        "complete": stop_reason == "thresholds-met",
+        "teamExhaustion": team_exhaustion,
         "team_windows": team_windows,
         "per_plus": per_plus,
         "aggregate": aggregate,
@@ -795,6 +835,14 @@ def build_report(args, prompt_cases, performance_summary, quota_summary, output_
 
     lines.extend(["", "## Quota Ratios", ""])
     if quota_summary:
+        lines.append(f"- stop reason: `{quota_summary.get('stopReason') or 'unknown'}`")
+        if quota_summary.get("teamExhaustion"):
+            exhaustion = quota_summary["teamExhaustion"]
+            lines.append(
+                f"- Team quota exhausted at round `{exhaustion.get('round_index')}` "
+                f"for windows `{', '.join(exhaustion.get('windows') or [])}`; "
+                "ratios are incomplete if thresholds were not reached before that point."
+            )
         aggregate = quota_summary.get("aggregate") or {}
         for window_id in ("5h", "week"):
             window_summary = aggregate.get(window_id) or {}

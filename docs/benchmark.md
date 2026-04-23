@@ -38,7 +38,7 @@ By default the tool will:
 
 - create a timestamped output directory under `./result/`
 - run `10` warm-up A/B pairs and `30` measured A/B pairs for performance
-- run quota batches with baseline tier until each Plus reference has dropped at least `15%` on `5h` and `5%` on `weekly`, or until `40` rounds have completed
+- run quota batches with baseline tier until each Plus reference has dropped at least `15%` on `5h` and `5%` on `weekly`, until Team quota is exhausted, or until `40` rounds have completed
 
 ## Common Flags
 
@@ -63,3 +63,4 @@ By default the tool will:
 - Performance A/B compares baseline requests against requests sent with `service_tier = priority`.
 - Team-to-Plus ratio is computed from direct quota-window drops under matched workloads.
 - If a quota window resets during a batch, that batch is marked invalid for ratio math instead of being silently averaged in.
+- If the Team account reaches `0%` remaining on either `5h` or `weekly`, quota benchmarking stops immediately and the report marks the ratio section incomplete.

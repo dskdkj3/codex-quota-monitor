@@ -38,7 +38,7 @@ codex-quota-benchmark \
 
 - 在 `./result/` 下创建一个时间戳输出目录
 - 性能部分先跑 `10` 组 warm-up A/B，再跑 `30` 组正式 A/B
-- quota 部分默认用 baseline tier 批量压测，直到每个 Plus 参考号的 `5h` 至少下降 `15%`、`weekly` 至少下降 `5%`，或最多跑完 `40` 轮
+- quota 部分默认用 baseline tier 批量压测，直到每个 Plus 参考号的 `5h` 至少下降 `15%`、`weekly` 至少下降 `5%`，或 Team 额度耗尽，或最多跑完 `40` 轮
 
 ## 常用参数
 
@@ -63,3 +63,4 @@ codex-quota-benchmark \
 - 性能 A/B 比的是 baseline 请求和 `service_tier = priority` 请求。
 - Team 相对 Plus 的倍率，是用同负载下 direct quota window 的真实下降量反推出来的。
 - 如果某个 batch 跨过了 quota reset，那个 batch 会被标成无效，不会被偷偷并进平均值里。
+- 如果 Team 账号的 `5h` 或 `weekly` 任一窗口掉到 `0%`，quota benchmark 会立即停止，并在报告里把倍率部分标成不完整。

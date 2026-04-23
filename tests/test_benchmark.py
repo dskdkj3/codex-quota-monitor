@@ -27,6 +27,7 @@ from codex_quota_monitor.benchmark import (  # noqa: E402
     build_report,
     build_gateway_config,
     compute_window_drop,
+    exhausted_windows,
     extract_usage,
     resolve_auth_file,
     run_one_request,
@@ -113,6 +114,18 @@ class BenchmarkHelperTests(unittest.TestCase):
         self.assertEqual(invalid["reason"], "reset-changed")
         self.assertTrue(valid["valid"])
         self.assertAlmostEqual(valid["drop"], 9.5)
+
+    def test_exhausted_windows_detects_zero_remaining_quota(self):
+        exhausted = exhausted_windows(
+            {
+                "windows": {
+                    "5h": {"remainingPercent": 0.0},
+                    "week": {"remainingPercent": 12.5},
+                }
+            }
+        )
+
+        self.assertEqual(exhausted, ["5h"])
 
     def test_extract_usage_reads_cached_and_reasoning_tokens(self):
         usage = extract_usage(
@@ -220,11 +233,34 @@ class QuotaSummaryTests(unittest.TestCase):
                 "plus": {"plus-slot": {"5h": 10.0, "week": 5.0}},
             },
             [],
+            stop_reason="thresholds-met",
         )
 
+        self.assertTrue(summary["complete"])
+        self.assertEqual(summary["stopReason"], "thresholds-met")
         self.assertEqual(summary["aggregate"]["5h"]["mean_ratio_in_plus_units"], 5.0)
         self.assertEqual(summary["aggregate"]["week"]["mean_ratio_in_plus_units"], 5.0)
         self.assertEqual(summary["per_plus"][0]["plus_label"], "account-slot")
+
+    def test_build_quota_summary_marks_team_exhaustion_incomplete(self):
+        team_gateway = type(
+            "Gateway",
+            (),
+            {"account": type("Account", (), {"auth_index": "team-slot", "label": "account-slot"})()},
+        )()
+
+        summary = build_quota_summary(
+            team_gateway,
+            [],
+            {"team": {"team-slot": {"5h": 1.0}}},
+            [],
+            stop_reason="team-quota-exhausted",
+            team_exhaustion={"round_index": 3, "windows": ["5h"], "auth_index": "team-slot"},
+        )
+
+        self.assertFalse(summary["complete"])
+        self.assertEqual(summary["stopReason"], "team-quota-exhausted")
+        self.assertEqual(summary["teamExhaustion"]["windows"], ["5h"])
 
     def test_build_report_mentions_summary_files(self):
         report = build_report(
