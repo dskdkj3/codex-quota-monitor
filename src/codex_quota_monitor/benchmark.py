@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import pathlib
+import re
 import shutil
 import socket
 import statistics
@@ -151,7 +152,11 @@ def discover_cli_proxy_api_bin(explicit_path):
         except (OSError, subprocess.CalledProcessError):
             output = ""
         if output:
-            candidate = output.split(maxsplit=1)[0]
+            path_match = re.search(r"\bpath=([^ ;]+)", output)
+            if path_match:
+                candidate = path_match.group(1)
+            else:
+                candidate = output.split(maxsplit=1)[0]
             if candidate:
                 return candidate
 

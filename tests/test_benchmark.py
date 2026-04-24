@@ -8,6 +8,7 @@ import tempfile
 import threading
 import unittest
 import urllib.request
+from unittest import mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -27,6 +28,7 @@ from codex_quota_monitor.benchmark import (  # noqa: E402
     build_report,
     build_gateway_config,
     compute_window_drop,
+    discover_cli_proxy_api_bin,
     exhausted_windows,
     extract_usage,
     resolve_auth_file,
@@ -99,6 +101,24 @@ class BenchmarkHelperTests(unittest.TestCase):
         self.assertIn('auth-dir: "/tmp/auth"', config_text)
         self.assertIn('  - "sk-bench"', config_text)
         self.assertIn("session-affinity: false", config_text)
+
+    def test_discover_cli_proxy_api_bin_parses_systemd_execstart_path(self):
+        execstart = (
+            "{ path=/nix/store/14krnmd7dk54pfw84zm5q1f6ic7zfrp0-cli-proxy-api-6.9.28/bin/cli-proxy-api ; "
+            "argv[]=/nix/store/14krnmd7dk54pfw84zm5q1f6ic7zfrp0-cli-proxy-api-6.9.28/bin/cli-proxy-api "
+            "--config /srv/example-cli-proxy-api/config.yaml ; ignore_errors=no ; start_time=[n/a] ; "
+            "stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
+        )
+
+        with mock.patch("codex_quota_monitor.benchmark.shutil.which") as which_mock:
+            with mock.patch("codex_quota_monitor.benchmark.subprocess.check_output", return_value=execstart):
+                which_mock.side_effect = [None, "/run/current-system/sw/bin/systemctl"]
+                discovered = discover_cli_proxy_api_bin("")
+
+        self.assertEqual(
+            discovered,
+            "/nix/store/14krnmd7dk54pfw84zm5q1f6ic7zfrp0-cli-proxy-api-6.9.28/bin/cli-proxy-api",
+        )
 
     def test_compute_window_drop_rejects_reset_change(self):
         invalid = compute_window_drop(
