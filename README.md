@@ -2,17 +2,17 @@
 
 [简体中文](README.zh-CN.md)
 
-Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth pools. It gives a fast read of remaining Plus capacity, current traffic split, and only the alerts that actually require intervention. The layout is tuned for desktop browsers, phone screens, and small e-ink browsers.
+Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth pools. It gives a fast read of remaining 5h/weekly capacity in Plus units, current traffic split, and only the alerts that actually require intervention. Team capacity counts 1:1 with Plus in those totals. The layout is tuned for desktop browsers, phone screens, and small e-ink browsers.
 
 ![Codex Quota Monitor preview](docs/assets/dashboard-preview.svg)
 
 ## At A Glance
 
-- `Pool`: 5h and weekly known Plus capacity, compact account cards, and visible non-Plus plans without counting them into Plus totals
+- `Pool`: 5h and weekly known capacity in Plus units, with Team counted 1:1 and other non-Plus plans remaining visible without affecting those totals
 - `Traffic`: current request, success, token, and account split from `CLIProxyAPI` usage
 - `Alerts`: only hard auth failures, explicit quota exhaustion, and monitor/source degradation
 - `Status`: gateway reachability and refresh health for the current CPA snapshot
-- `Pool`: Plus / Non-Plus totals, `5h` / `weekly` capacity, and the current CPA fast override state (`On`, `Off`, `Inherit`, or `Unknown`)
+- `Pool`: Plus / Non-Plus totals, `5h` / `weekly` capacity in Plus units, and the current CPA fast override state (`On`, `Off`, `Inherit`, or `Unknown`)
 - `Target devices`: desktop, mobile, and small-screen browsers
 
 ## Quick Links

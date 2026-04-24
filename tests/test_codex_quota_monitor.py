@@ -293,8 +293,8 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["source"], "partial")
         self.assertEqual(snapshot["summary"]["poolPill"], "2 Plus · 1 Non-Plus")
         self.assertEqual(snapshot["summary"]["fastPill"], "Fast On")
-        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.30 Plus")
-        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.80 Plus")
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.90 Plus")
+        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 1.70 Plus")
         self.assertEqual(snapshot["summary"]["subline"], "Round Robin + Sticky · 4 req · 3.2K tok")
         self.assertEqual(snapshot["summary"]["alertsPill"], "2 alerts")
         self.assertEqual(snapshot["fastMode"]["state"], "on")
@@ -307,8 +307,11 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(pool_tab["summary"], "2 Plus · 1 Non-Plus · 2 healthy · 1 issues")
         self.assertEqual(pool_tab["stats"][2]["label"], "Fast")
         self.assertEqual(pool_tab["stats"][2]["value"], "On")
+        self.assertEqual(pool_tab["stats"][1]["detail"], "shown in the grid; Team counts 1:1 in capacity, other plans stay excluded")
         self.assertIn("service_tier=priority", pool_tab["stats"][2]["detail"])
-        self.assertEqual(pool_tab["capacityWindows"][0]["knownUnitsText"], "0.30 Plus")
+        self.assertEqual(pool_tab["capacityWindows"][0]["knownUnitsText"], "0.90 Plus")
+        self.assertEqual(pool_tab["capacityWindows"][0]["plusTotal"], 2)
+        self.assertEqual(pool_tab["capacityWindows"][0]["trackedTotal"], 3)
         self.assertIn("Unclassified 1", pool_tab["capacityWindows"][0]["summary"])
         self.assertEqual(pool_tab["accounts"][0]["title"], "account-slot")
         self.assertEqual(pool_tab["accounts"][0]["statusLabel"], "Quota hit")
@@ -318,7 +321,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(pool_tab["accounts"][0]["windows"][0]["valueText"], "Unknown")
         self.assertIn("Resets", pool_tab["accounts"][0]["note"])
         self.assertIn("direct Codex usage sampling", pool_tab["footnote"])
-        self.assertIn("Non-Plus plans stay visible in the grid", pool_tab["footnote"])
+        self.assertIn("Team counts 1:1 in total capacity", pool_tab["footnote"])
         plus_known = next(account for account in pool_tab["accounts"] if account["title"] == "account-slot")
         self.assertEqual(plus_known["requests"], 2)
         self.assertEqual(plus_known["sharePercent"], 62)
@@ -328,7 +331,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(team_account["sharePercent"], 12)
         self.assertEqual(team_account["windows"][0]["valueText"], "60%")
         self.assertIn("Resets", team_account["windows"][0]["note"])
-        self.assertIn("Team plan uses separate quota tracking", team_account["windows"][0]["note"])
+        self.assertNotIn("excluded", team_account["windows"][0]["note"])
 
         traffic_tab = snapshot["tabs"]["traffic"]
         self.assertEqual(traffic_tab["metrics"][0]["value"], "4")
@@ -404,8 +407,90 @@ class DashboardSnapshotTests(unittest.TestCase):
         enterprise_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["title"] == "account-slot")
         self.assertEqual(enterprise_account["windows"][0]["valueText"], "Unknown")
         self.assertIn("Waiting for first direct sample.", enterprise_account["windows"][0]["note"])
-        self.assertIn("Enterprise plan is excluded from Plus 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
+        self.assertIn("Enterprise plan is shown in the grid but excluded from total 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
         self.assertEqual(snapshot["tabs"]["pool"]["capacityWindows"][0]["knownUnitsText"], "0.40 Plus")
+
+    def test_build_dashboard_snapshot_counts_team_capacity_in_live_like_mix(self):
+        sampled_at = dt.datetime(2026, 4, 24, 15, 30, tzinfo=dt.timezone.utc).astimezone()
+        plus_files = [
+            {
+                "auth_index": f"acct-plus-{index}",
+                "label": f"plus-slot-{index}",
+                "status": "active",
+                "updated_at": "2026-04-24T23:20:00+08:00",
+                "id_token": {"plan_type": "plus"},
+            }
+            for index in range(6)
+        ]
+        quota_samples = {
+            f"acct-plus-{index}": {
+                "sampledAt": dt.datetime(2026, 4, 24, 15, 29, 45, tzinfo=dt.timezone.utc).astimezone(),
+                "planType": "plus",
+                "windows": {
+                    "5h": {"percent": 100, "resetAt": dt.datetime(2026, 4, 24, 19, 0, tzinfo=dt.timezone.utc).astimezone()},
+                    "week": {"percent": 100, "resetAt": dt.datetime(2026, 4, 29, 0, 0, tzinfo=dt.timezone.utc).astimezone()},
+                },
+                "lastError": None,
+                "lastErrorAt": None,
+            }
+            for index in range(6)
+        }
+        quota_samples["acct-team"] = {
+            "sampledAt": dt.datetime(2026, 4, 24, 15, 29, 55, tzinfo=dt.timezone.utc).astimezone(),
+            "planType": "team",
+            "windows": {
+                "5h": {"percent": 50, "resetAt": dt.datetime(2026, 4, 24, 19, 0, tzinfo=dt.timezone.utc).astimezone()},
+                "week": {"percent": 75, "resetAt": dt.datetime(2026, 4, 29, 0, 0, tzinfo=dt.timezone.utc).astimezone()},
+            },
+            "lastError": None,
+            "lastErrorAt": None,
+        }
+        snapshot = MODULE.build_dashboard_snapshot(
+            health_payload={"status": "ok"},
+            auth_files_payload={
+                "files": plus_files
+                + [
+                    {
+                        "auth_index": "acct-team",
+                        "label": "account-slot",
+                        "status": "active",
+                        "updated_at": "2026-04-24T23:25:00+08:00",
+                        "id_token": {"plan_type": "team"},
+                    }
+                ]
+            },
+            usage_payload={"usage": {"total_requests": 0, "success_count": 0, "failure_count": 0, "total_tokens": 0, "apis": {}}},
+            quota_payload={
+                "status": "live",
+                "eligibleCount": 7,
+                "sampledCount": 7,
+                "freshCount": 7,
+                "staleCount": 0,
+                "cycleSeconds": 30,
+                "completedCycle": True,
+                "degraded": False,
+                "attemptedKey": "acct-team",
+                "attemptError": None,
+                "samples": quota_samples,
+            },
+            routing_payload={"routing": {"strategy": "round-robin", "session-affinity": True, "session-affinity-ttl": "1h"}},
+            usage_stats_payload={"usage-statistics-enabled": True},
+            request_log_payload={"request-log": True},
+            logs_payload={"lines": []},
+            sampled_at=sampled_at,
+        )
+
+        self.assertEqual(snapshot["summary"]["poolPill"], "6 Plus · 1 Non-Plus")
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 6.50 Plus")
+        self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 6.75 Plus")
+        self.assertEqual(snapshot["tabs"]["pool"]["summary"], "6 Plus · 1 Non-Plus · 7 healthy · 0 issues")
+        self.assertEqual(snapshot["tabs"]["pool"]["capacityWindows"][0]["plusTotal"], 6)
+        self.assertEqual(snapshot["tabs"]["pool"]["capacityWindows"][0]["trackedTotal"], 7)
+        self.assertEqual(snapshot["tabs"]["pool"]["capacityWindows"][0]["knownUnitsText"], "6.50 Plus")
+        self.assertEqual(snapshot["tabs"]["pool"]["stats"][1]["value"], "1")
+        team_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["badge"] == "Team")
+        self.assertEqual(team_account["windows"][0]["valueText"], "50%")
+        self.assertNotIn("excluded", team_account["windows"][0]["note"])
 
     def test_build_dashboard_snapshot_exposes_inherit_and_unknown_fast_states(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
@@ -524,7 +609,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         enterprise_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["title"] == "account-slot")
         self.assertEqual(enterprise_account["statusLabel"], "Quota hit")
         self.assertEqual(enterprise_account["windows"][0]["valueText"], "0%")
-        self.assertIn("Enterprise plan is excluded from Plus 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
+        self.assertIn("Enterprise plan is shown in the grid but excluded from total 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
         self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][1]["value"], "1")
 
     def test_build_dashboard_snapshot_filters_unknown_non_auth_json_entries(self):

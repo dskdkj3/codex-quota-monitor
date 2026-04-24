@@ -256,6 +256,10 @@ def is_team_plan(plan_kind):
     return "team" in plan_kind
 
 
+def is_capacity_tracked_plan(plan_kind):
+    return is_plus_plan(plan_kind) or is_team_plan(plan_kind)
+
+
 def short_slot(value):
     text = str(value or "").strip()
     if not text:
@@ -554,12 +558,9 @@ def build_direct_window_state(window_definition, quota_sample, reference_time, c
 
 
 def non_plus_window_note(plan_label):
-    normalized_plan = normalize_key(plan_label)
-    if normalized_plan == "team":
-        return "Team plan uses separate quota tracking and is excluded from Plus capacity."
     if plan_label and plan_label != "Unknown":
-        return f"{plan_label} plan is excluded from Plus 5h/weekly capacity."
-    return "This plan is excluded from Plus 5h/weekly capacity."
+        return f"{plan_label} plan is shown in the grid but excluded from total 5h/weekly capacity."
+    return "This plan is shown in the grid but excluded from total 5h/weekly capacity."
 
 
 def append_window_note(note, extra_note):
@@ -576,7 +577,7 @@ def build_window_state(
     parsed_message,
     *,
     plan_label,
-    plus_plan,
+    capacity_tracked_plan,
     generic_quota,
     quota_sample,
     cycle_seconds,
@@ -586,11 +587,11 @@ def build_window_state(
 
     direct_state = build_direct_window_state(window_definition, quota_sample, reference_time, cycle_seconds)
     if direct_state is not None:
-        if not plus_plan:
+        if not capacity_tracked_plan:
             direct_state["note"] = append_window_note(direct_state.get("note"), non_plus_window_note(plan_label))
         return direct_state
 
-    if not plus_plan:
+    if not capacity_tracked_plan:
         note = "Unknown"
         if quota_sample == {}:
             note = "Waiting for first direct sample."
@@ -662,7 +663,7 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
     label = auth_label(auth_file, usage_entry)
     plan_label = quota_plan_label(auth_file, quota_sample)
     plan_kind = normalize_key(plan_label)
-    plus_plan = is_plus_plan(plan_kind)
+    capacity_tracked_plan = is_capacity_tracked_plan(plan_kind)
     raw_message = str(auth_file.get("status_message") or "").strip()
     parsed_message = parse_status_message_payload(raw_message)
     message_text = human_status_message(raw_message, parsed_message) if raw_message else ""
@@ -727,7 +728,7 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
             auth_file,
             parsed_message,
             plan_label=plan_label,
-            plus_plan=plus_plan,
+            capacity_tracked_plan=capacity_tracked_plan,
             generic_quota=generic_quota,
             quota_sample=quota_sample,
             cycle_seconds=quota_cycle_seconds,
@@ -773,7 +774,13 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
         "updatedAt": updated_at,
         "windows": windows,
         "sortKey": (
-            0 if (quota_issue or issue_kind) else 1 if plus_plan and remaining_floor <= 100 else 2 if plus_plan else 3,
+            0
+            if (quota_issue or issue_kind)
+            else 1
+            if capacity_tracked_plan and remaining_floor <= 100
+            else 2
+            if capacity_tracked_plan
+            else 3,
             0 if quota_issue else 1 if issue_kind else 2,
             remaining_floor,
             -share_percent,
@@ -877,8 +884,9 @@ def build_account_contexts(auth_files, usage_index, reference_time, quota_payloa
 
 
 def build_capacity_windows(contexts):
-    plus_contexts = [context for context in contexts if is_plus_plan(context["planKind"])]
-    plus_total = len(plus_contexts)
+    plus_total = sum(1 for context in contexts if is_plus_plan(context["planKind"]))
+    tracked_contexts = [context for context in contexts if is_capacity_tracked_plan(context["planKind"])]
+    tracked_total = len(tracked_contexts)
     items = []
 
     for definition in WINDOW_DEFINITIONS:
@@ -888,7 +896,7 @@ def build_capacity_windows(contexts):
         unclassified_count = 0
         stale_count = 0
 
-        for context in plus_contexts:
+        for context in tracked_contexts:
             window = next(item for item in context["windows"] if item["id"] == definition["id"])
             if window["state"] in {"known", "exhausted"} and window["percent"] is not None:
                 known_units += float(window["percent"]) / 100.0
@@ -903,8 +911,8 @@ def build_capacity_windows(contexts):
                 unknown_count += 1
 
         known_units_text = f"{format_fractional_count(known_units)} Plus"
-        known_bar_percent = int(round((known_units / float(plus_total)) * 100)) if plus_total > 0 else 0
-        unknown_bar_percent = int(round((unknown_count / float(plus_total)) * 100)) if plus_total > 0 else 0
+        known_bar_percent = int(round((known_units / float(tracked_total)) * 100)) if tracked_total > 0 else 0
+        unknown_bar_percent = int(round((unknown_count / float(tracked_total)) * 100)) if tracked_total > 0 else 0
         summary_bits = [f"Known {known_units_text}"]
         if unknown_count:
             summary_bits.append(f"Unknown {unknown_count}")
@@ -912,8 +920,6 @@ def build_capacity_windows(contexts):
             summary_bits.append(f"Exhausted {exhausted_count}")
         if unclassified_count:
             summary_bits.append(f"Unclassified {unclassified_count}")
-        if not summary_bits:
-            summary_bits = ["No Plus accounts"]
 
         pill_suffix = ""
         if unknown_count > 0:
@@ -926,18 +932,19 @@ def build_capacity_windows(contexts):
                 "knownUnits": known_units,
                 "knownUnitsText": known_units_text,
                 "plusTotal": plus_total,
+                "trackedTotal": tracked_total,
                 "unknownCount": unknown_count,
                 "exhaustedCount": exhausted_count,
                 "unclassifiedCount": unclassified_count,
                 "staleCount": stale_count,
                 "knownBarPercent": known_bar_percent,
                 "unknownBarPercent": unknown_bar_percent,
-                "summary": " · ".join(summary_bits) if plus_total > 0 else "No Plus accounts in the pool.",
+                "summary": " · ".join(summary_bits) if tracked_total > 0 else "No Plus or Team accounts in the pool.",
                 "pillText": f"{definition['label']} {known_units_text}{pill_suffix}",
             }
         )
 
-    return items, plus_total
+    return items, tracked_total
 
 
 def build_pool_accounts(contexts):
@@ -1131,7 +1138,7 @@ def build_dashboard_snapshot(
     usage_index = build_usage_index(usage_payload)
     contexts, plan_counts = build_account_contexts(auth_files, usage_index, sampled_at, quota_payload)
     pool_accounts = build_pool_accounts(contexts)
-    capacity_windows, plus_total = build_capacity_windows(contexts)
+    capacity_windows, _tracked_total = build_capacity_windows(contexts)
     traffic_items = build_traffic_distribution(contexts)
 
     totals = usage_index["totals"]
@@ -1206,10 +1213,14 @@ def build_dashboard_snapshot(
         "tabs": {
             "pool": {
                 "title": "Pool Capacity",
-                "summary": f"{plus_total} Plus · {non_plus_total} Non-Plus · {active_count} healthy · {hard_issue_count + quota_issue_count} issues",
+                "summary": f"{plan_counts['plus']} Plus · {non_plus_total} Non-Plus · {active_count} healthy · {hard_issue_count + quota_issue_count} issues",
                 "stats": [
-                    {"label": "Plus", "value": str(plus_total), "detail": "accounts counted in capacity windows"},
-                    {"label": "Non-Plus", "value": str(non_plus_total), "detail": "shown in the grid, excluded from Plus capacity"},
+                    {"label": "Plus", "value": str(plan_counts["plus"]), "detail": "accounts with a native Plus plan"},
+                    {
+                        "label": "Non-Plus",
+                        "value": str(non_plus_total),
+                        "detail": "shown in the grid; Team counts 1:1 in capacity, other plans stay excluded",
+                    },
                     {"label": "Fast", "value": fast_value, "detail": fast_mode["detail"]},
                     {"label": "Routing", "value": routing["text"], "detail": routing["detail"]},
                 ],
@@ -1219,8 +1230,8 @@ def build_dashboard_snapshot(
                     "5h / weekly windows come from direct Codex usage sampling, one account every "
                     f"{quota_refresh_seconds(quota_payload) or 15}s. CLIProxyAPI still supplies pool membership and "
                     "traffic. Unknown means there is no successful direct sample yet; cached values may remain visible if "
-                    "the direct quota source degrades. Non-Plus plans stay visible in the grid but are excluded from Plus "
-                    "capacity."
+                    "the direct quota source degrades. Team counts 1:1 in total capacity; other non-Plus plans stay visible "
+                    "in the grid but remain excluded."
                 ),
             },
             "traffic": {
