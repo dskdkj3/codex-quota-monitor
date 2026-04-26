@@ -251,15 +251,27 @@ def find_window_signal(node, aliases):
 
 
 def is_plus_plan(plan_kind):
-    return "plus" in plan_kind
+    return "plus" in normalize_key(plan_kind)
 
 
 def is_team_plan(plan_kind):
-    return "team" in plan_kind
+    return "team" in normalize_key(plan_kind)
+
+
+def is_prolite_plan(plan_kind):
+    return normalize_key(plan_kind) == "prolite"
+
+
+def capacity_plan_weight(plan_kind):
+    if is_plus_plan(plan_kind) or is_team_plan(plan_kind):
+        return 1.0
+    if is_prolite_plan(plan_kind):
+        return 10.0
+    return 0.0
 
 
 def is_capacity_tracked_plan(plan_kind):
-    return is_plus_plan(plan_kind) or is_team_plan(plan_kind)
+    return capacity_plan_weight(plan_kind) > 0.0
 
 
 def short_slot(value):
@@ -936,21 +948,27 @@ def build_account_contexts(auth_files, usage_index, reference_time, quota_payloa
 
 def build_capacity_windows(contexts):
     plus_total = sum(1 for context in contexts if is_plus_plan(context["planKind"]))
-    tracked_contexts = [context for context in contexts if is_capacity_tracked_plan(context["planKind"])]
+    tracked_contexts = [
+        (context, capacity_plan_weight(context["planKind"]))
+        for context in contexts
+        if is_capacity_tracked_plan(context["planKind"])
+    ]
     tracked_total = len(tracked_contexts)
+    tracked_units = sum(weight for _context, weight in tracked_contexts)
     items = []
 
     for definition in WINDOW_DEFINITIONS:
         known_units = 0.0
+        unknown_units = 0.0
         unknown_count = 0
         exhausted_count = 0
         unclassified_count = 0
         stale_count = 0
 
-        for context in tracked_contexts:
+        for context, weight in tracked_contexts:
             window = next(item for item in context["windows"] if item["id"] == definition["id"])
             if window["state"] in {"known", "exhausted"} and window["percent"] is not None:
-                known_units += float(window["percent"]) / 100.0
+                known_units += (float(window["percent"]) / 100.0) * weight
                 if window["percent"] <= 0:
                     exhausted_count += 1
                 if window.get("stale"):
@@ -960,10 +978,11 @@ def build_capacity_windows(contexts):
                 unclassified_count += 1
             else:
                 unknown_count += 1
+                unknown_units += weight
 
         known_units_text = f"{format_fractional_count(known_units)} Plus"
-        known_bar_percent = int(round((known_units / float(tracked_total)) * 100)) if tracked_total > 0 else 0
-        unknown_bar_percent = int(round((unknown_count / float(tracked_total)) * 100)) if tracked_total > 0 else 0
+        known_bar_percent = int(round((known_units / tracked_units) * 100)) if tracked_units > 0 else 0
+        unknown_bar_percent = int(round((unknown_units / tracked_units) * 100)) if tracked_units > 0 else 0
         summary_bits = [f"Known {known_units_text}"]
         if unknown_count:
             summary_bits.append(f"Unknown {unknown_count}")
@@ -984,13 +1003,14 @@ def build_capacity_windows(contexts):
                 "knownUnitsText": known_units_text,
                 "plusTotal": plus_total,
                 "trackedTotal": tracked_total,
+                "trackedUnits": tracked_units,
                 "unknownCount": unknown_count,
                 "exhaustedCount": exhausted_count,
                 "unclassifiedCount": unclassified_count,
                 "staleCount": stale_count,
                 "knownBarPercent": known_bar_percent,
                 "unknownBarPercent": unknown_bar_percent,
-                "summary": " · ".join(summary_bits) if tracked_total > 0 else "No Plus or Team accounts in the pool.",
+                "summary": " · ".join(summary_bits) if tracked_total > 0 else "No tracked capacity accounts in the pool.",
                 "pillText": f"{definition['label']} {known_units_text}{pill_suffix}",
             }
         )
@@ -1341,7 +1361,7 @@ def build_dashboard_snapshot(
                     {
                         "label": "Non-Plus",
                         "value": str(non_plus_total),
-                        "detail": "shown in the grid; Team counts 1:1 in capacity, other plans stay excluded",
+                        "detail": "shown in the grid; Team counts 1:1 and Prolite counts 10:1 in capacity, other plans stay excluded",
                     },
                     {"label": "Fast", "value": fast_value, "detail": fast_mode["detail"]},
                     {"label": "Routing", "value": routing["text"], "detail": routing["detail"]},
@@ -1352,8 +1372,8 @@ def build_dashboard_snapshot(
                     "5h / weekly windows come from direct Codex usage sampling, one account every "
                     f"{quota_refresh_seconds(quota_payload) or 15}s. CLIProxyAPI still supplies pool membership and "
                     "traffic. Unknown means there is no successful direct sample yet; cached values may remain visible if "
-                    "the direct quota source degrades. Team counts 1:1 in total capacity; other non-Plus plans stay visible "
-                    "in the grid but remain excluded."
+                    "the direct quota source degrades. Team counts 1:1 and Prolite counts 10:1 in total capacity; "
+                    "other non-Plus plans stay visible in the grid but remain excluded."
                 ),
             },
             "resets": reset_schedule,

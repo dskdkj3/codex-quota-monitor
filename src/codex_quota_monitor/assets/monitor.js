@@ -190,7 +190,7 @@ function renderCapacityCards(targetId, windows) {
   var htmlParts = [];
 
   if (!safeWindows.length) {
-    setHtml(targetId, '<article class="capacity-card"><p class="empty">No Plus or Team capacity windows are available yet.</p></article>');
+    setHtml(targetId, '<article class="capacity-card"><p class="empty">No tracked capacity windows are available yet.</p></article>');
     return;
   }
 

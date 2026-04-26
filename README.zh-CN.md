@@ -2,13 +2,13 @@
 
 [English](README.md)
 
-一个面向 `CLIProxyAPI` 承载的 Codex OAuth 账号池的浏览器监控页。它优先回答三个问题：当前 `5h` / `weekly` 还剩多少以 Plus 单位表示的总容量、当前流量怎么分、有没有必须介入的问题。Team 容量会按和 Plus `1:1` 的口径计入这些总量。布局针对 PC 浏览器、手机浏览器和 e-ink 这类电子墨水屏都做了兼容。
+一个面向 `CLIProxyAPI` 承载的 Codex OAuth 账号池的浏览器监控页。它优先回答三个问题：当前 `5h` / `weekly` 还剩多少以 Plus 单位表示的总容量、当前流量怎么分、有没有必须介入的问题。Team 容量会按和 Plus `1:1` 的口径计入这些总量；Prolite 按 `10:1` 计入。布局针对 PC 浏览器、手机浏览器和 e-ink 这类电子墨水屏都做了兼容。
 
 ![Codex Quota Monitor 预览图](docs/assets/dashboard-preview.svg)
 
 ## 你能直接看到什么
 
-- `Pool`：`5h` / `weekly` 已知总容量（以 Plus 为单位展示），其中 Team 按 `1:1` 计入，其它非 Plus 账号仍可见但不影响总量
+- `Pool`：`5h` / `weekly` 已知总容量（以 Plus 为单位展示），其中 Team 按 `1:1` 计入、Prolite 按 `10:1` 计入，其它非 Plus 账号仍可见但不影响总量
 - `Resets`：按从近到远排序展示 `5h` / `weekly` 的 reset 时间，并用紧凑的北京时间显示目标时刻
 - `Traffic`：来自 `CLIProxyAPI` usage 的请求数、成功率、token 和账号分摊
 - `Alerts`：只保留硬 auth 故障、明确 quota exhausted、以及 monitor / 数据源降级
