@@ -333,6 +333,20 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertIn("Resets", team_account["windows"][0]["note"])
         self.assertNotIn("excluded", team_account["windows"][0]["note"])
 
+        resets_tab = snapshot["tabs"]["resets"]
+        self.assertEqual(resets_tab["title"], "Reset Schedule")
+        self.assertIn("3 direct-sampled accounts", resets_tab["summary"])
+        five_hour_rows = resets_tab["columns"][0]["items"]
+        weekly_rows = resets_tab["columns"][1]["items"]
+        self.assertEqual([row["account"] for row in five_hour_rows], ["account-slot", "account-slot", "account-slot"])
+        self.assertEqual(five_hour_rows[0]["remainingText"], "3h 0min")
+        self.assertEqual(five_hour_rows[0]["beijingTimeText"], "04-20 23:30")
+        self.assertEqual(five_hour_rows[-1]["remainingText"], "Unknown")
+        self.assertEqual(five_hour_rows[-1]["beijingTimeText"], "Unknown")
+        self.assertEqual([row["account"] for row in weekly_rows], ["account-slot", "account-slot", "account-slot"])
+        self.assertEqual(weekly_rows[0]["remainingText"], "2d 7h 30min")
+        self.assertEqual(weekly_rows[0]["beijingTimeText"], "04-23 04:00")
+
         traffic_tab = snapshot["tabs"]["traffic"]
         self.assertEqual(traffic_tab["metrics"][0]["value"], "4")
         self.assertEqual(traffic_tab["metrics"][1]["value"], "75%")
@@ -611,6 +625,11 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(enterprise_account["windows"][0]["valueText"], "0%")
         self.assertIn("Enterprise plan is shown in the grid but excluded from total 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
         self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][1]["value"], "1")
+        five_hour_reset_accounts = [row["account"] for row in snapshot["tabs"]["resets"]["columns"][0]["items"]]
+        self.assertEqual(five_hour_reset_accounts, ["account-slot", "account-slot"])
+        enterprise_reset = next(row for row in snapshot["tabs"]["resets"]["columns"][0]["items"] if row["account"] == "account-slot")
+        self.assertEqual(enterprise_reset["valueText"], "0%")
+        self.assertEqual(enterprise_reset["beijingTimeText"], "04-21 00:00")
 
     def test_build_dashboard_snapshot_filters_unknown_non_auth_json_entries(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()

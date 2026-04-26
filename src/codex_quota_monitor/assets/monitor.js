@@ -1,10 +1,11 @@
 var BOOTSTRAP = window.CODEX_QUOTA_MONITOR_BOOTSTRAP || {};
 var INITIAL_SNAPSHOT = BOOTSTRAP.initialSnapshot || {};
 var REFRESH_MS = BOOTSTRAP.refreshMs || 15000;
-var TAB_NAMES = ["pool", "traffic", "alerts"];
+var TAB_NAMES = ["pool", "resets", "traffic", "alerts"];
 var ACTIVE_TAB_NAME = null;
 var LAST_TAB_SIGNATURES = {
   pool: null,
+  resets: null,
   traffic: null,
   alerts: null
 };
@@ -348,6 +349,66 @@ function renderTrafficTab(tabData) {
   renderListItems("traffic-distribution", safeTab.distribution || [], "No traffic split is available yet.");
 }
 
+function renderResetColumns(targetId, columns) {
+  var safeColumns = columns && columns.length ? columns : [];
+  var htmlParts = [];
+
+  if (!safeColumns.length) {
+    setHtml(targetId, '<article class="reset-list"><p class="empty">No direct quota samples are available yet.</p></article>');
+    return;
+  }
+
+  for (var columnIndex = 0; columnIndex < safeColumns.length; columnIndex += 1) {
+    var column = safeColumns[columnIndex] || {};
+    var rows = column.items && column.items.length ? column.items : [];
+    var rowParts = [];
+
+    if (!rows.length) {
+      rowParts.push('<div class="reset-row reset-row-unknown"><p class="empty">No reset times yet.</p></div>');
+    }
+
+    for (var rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+      var row = rows[rowIndex] || {};
+      var known = typeof row.resetsInSeconds === "number" && row.resetAt;
+      var rowClass = known ? "reset-row" : "reset-row reset-row-unknown";
+      var account = text(row.account, "Unknown account");
+      rowParts.push(
+        '<div class="' + rowClass + '">' +
+          '<div class="reset-main">' +
+            '<span class="reset-remaining">' + escapeHtml(text(row.remainingText, "Unknown")) + "</span>" +
+            '<span class="reset-time">' + escapeHtml(text(row.beijingTimeText, "Unknown")) + "</span>" +
+          "</div>" +
+          '<div class="reset-meta">' +
+            '<span class="reset-account" title="' + escapeHtml(account) + '">' + escapeHtml(account) + "</span>" +
+            '<span>' + escapeHtml(text(row.meta, "")) + "</span>" +
+            '<span>' + escapeHtml(text(row.valueText, "Unknown")) + "</span>" +
+          "</div>" +
+        "</div>"
+      );
+    }
+
+    htmlParts.push(
+      '<article class="reset-list">' +
+        '<div class="reset-list-head">' +
+          '<h3 class="reset-list-title">' + escapeHtml(text(column.title, "Window")) + "</h3>" +
+          '<span class="reset-list-summary">' + escapeHtml(text(column.summary, "")) + "</span>" +
+        "</div>" +
+        '<div class="reset-items">' + rowParts.join("") + "</div>" +
+      "</article>"
+    );
+  }
+
+  setHtml(targetId, htmlParts.join(""));
+}
+
+function renderResetsTab(tabData) {
+  var safeTab = tabData || {};
+  setText("tab-title-resets", safeTab.title, "Reset Schedule");
+  setText("tab-summary-resets", safeTab.summary, "");
+  setText("tab-footnote-resets", safeTab.footnote, "");
+  renderResetColumns("resets-columns", safeTab.columns || []);
+}
+
 function renderAlertsTab(tabData) {
   var safeTab = tabData || {};
   setText("tab-title-alerts", safeTab.title, "Intervention Only");
@@ -388,6 +449,7 @@ function renderSnapshot(snapshot) {
   }
 
   renderTabIfChanged("pool", tabs.pool, renderPoolTab);
+  renderTabIfChanged("resets", tabs.resets, renderResetsTab);
   renderTabIfChanged("traffic", tabs.traffic, renderTrafficTab);
   renderTabIfChanged("alerts", tabs.alerts, renderAlertsTab);
 }

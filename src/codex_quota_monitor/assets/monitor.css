@@ -148,7 +148,7 @@ body {
 
 .tab-bar {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -236,7 +236,8 @@ body {
 
 .capacity-card,
 .list-item,
-.account {
+.account,
+.reset-list {
   border: 2px solid var(--line);
   background: rgba(255, 255, 255, 0.8);
 }
@@ -488,6 +489,97 @@ body {
   padding: 10px;
 }
 
+.reset-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reset-list {
+  padding: 9px 10px 10px;
+}
+
+.reset-list-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.reset-list-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.reset-list-summary {
+  color: var(--quiet);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.reset-items {
+  display: grid;
+  gap: 0;
+  margin-top: 7px;
+}
+
+.reset-row {
+  min-width: 0;
+  padding: 6px 0;
+  border-top: 1px solid rgba(36, 35, 31, 0.22);
+}
+
+.reset-row:first-child {
+  border-top: 0;
+}
+
+.reset-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.reset-remaining {
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.reset-time {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.reset-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 7px;
+  margin-top: 3px;
+  color: var(--quiet);
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.reset-account {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reset-row-unknown .reset-remaining,
+.reset-row-unknown .reset-time {
+  color: var(--quiet);
+}
+
 .list-item-bad {
   background: var(--bad);
 }
@@ -526,6 +618,10 @@ body {
   }
 
   .capacity-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reset-columns {
     grid-template-columns: 1fr;
   }
 
@@ -578,11 +674,20 @@ body {
   .account-chip,
   .account-note,
   .quota-label,
-  .quota-note {
+  .quota-note,
+  .reset-meta {
     font-size: 10px;
   }
 
   .quota-value {
     font-size: 15px;
+  }
+
+  .reset-remaining {
+    font-size: 16px;
+  }
+
+  .reset-time {
+    font-size: 13px;
   }
 }

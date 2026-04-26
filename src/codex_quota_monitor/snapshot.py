@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import math
 
 from .quota import is_quota_sample_stale
 from .util import (
@@ -41,6 +42,7 @@ WINDOW_DEFINITIONS = (
         "aliases": ("weekly", "week", "7d", "7day", "sevenday", "rolling7d", "rollingweekly"),
     },
 )
+BEIJING_TZ = dt.timezone(dt.timedelta(hours=8), name="Asia/Shanghai")
 
 PERCENT_FIELD_ALIASES = (
     "remainingpercent",
@@ -265,6 +267,48 @@ def short_slot(value):
     if not text:
         return "unknown"
     return text[:6]
+
+
+def reset_seconds_until(reset_at, reference_time):
+    if reset_at is None or reference_time is None:
+        return None
+    return max(0, int(math.ceil((reset_at - reference_time).total_seconds())))
+
+
+def format_reset_remaining(reset_at, reference_time, *, include_days=False):
+    seconds = reset_seconds_until(reset_at, reference_time)
+    if seconds is None:
+        return "Unknown"
+
+    total_minutes = int(math.ceil(float(seconds) / 60.0)) if seconds > 0 else 0
+    if include_days:
+        days, remainder = divmod(total_minutes, 24 * 60)
+        hours, minutes = divmod(remainder, 60)
+        if days:
+            return f"{days}d {hours}h {minutes}min"
+        if hours:
+            return f"{hours}h {minutes}min"
+        return f"{minutes}min"
+
+    hours, minutes = divmod(total_minutes, 60)
+    if hours:
+        return f"{hours}h {minutes}min"
+    return f"{minutes}min"
+
+
+def display_beijing_compact_timestamp(value):
+    if value is None:
+        return "Unknown"
+    return value.astimezone(BEIJING_TZ).strftime("%m-%d %H:%M")
+
+
+def reset_display_fields(reset_at, reference_time, *, include_days=False):
+    return {
+        "resetAt": iso_timestamp(reset_at) if reset_at is not None else None,
+        "resetsInSeconds": reset_seconds_until(reset_at, reference_time),
+        "remainingText": format_reset_remaining(reset_at, reference_time, include_days=include_days),
+        "beijingTimeText": display_beijing_compact_timestamp(reset_at),
+    }
 
 
 def routing_state(config_payload):
@@ -554,6 +598,7 @@ def build_direct_window_state(window_definition, quota_sample, reference_time, c
         "note": " · ".join(note_bits),
         "fillPercent": percent,
         "stale": stale,
+        **reset_display_fields(reset_at, reference_time, include_days=window_definition["id"] == "week"),
     }
 
 
@@ -613,6 +658,7 @@ def build_window_state(
             "valueText": "Unknown",
             "note": append_window_note(note, non_plus_window_note(plan_label)),
             "fillPercent": 0,
+            **reset_display_fields(None, reference_time, include_days=window_definition["id"] == "week"),
         }
 
     signal = find_window_signal(parsed_message, window_definition["aliases"])
@@ -632,6 +678,7 @@ def build_window_state(
             "valueText": f"{percent}%",
             "note": note,
             "fillPercent": percent,
+            **reset_display_fields(None, reference_time, include_days=window_definition["id"] == "week"),
         }
 
     note = "Unknown"
@@ -655,6 +702,7 @@ def build_window_state(
         "valueText": "Unknown",
         "note": note,
         "fillPercent": 0,
+        **reset_display_fields(None, reference_time, include_days=window_definition["id"] == "week"),
     }
 
 
@@ -772,6 +820,7 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
         "tokens": tokens,
         "recentTimestamp": recent_timestamp,
         "updatedAt": updated_at,
+        "directQuotaEligible": isinstance(quota_sample, dict),
         "windows": windows,
         "sortKey": (
             0
@@ -819,6 +868,7 @@ def build_runtime_context(key, usage_entry, reference_time, usage_totals):
         "tokens": tokens,
         "recentTimestamp": recent_timestamp,
         "updatedAt": None,
+        "directQuotaEligible": False,
         "windows": [
             {
                 "id": definition["id"],
@@ -828,6 +878,7 @@ def build_runtime_context(key, usage_entry, reference_time, usage_totals):
                 "valueText": "Unknown",
                 "note": "No auth-file metadata available.",
                 "fillPercent": 0,
+                **reset_display_fields(None, reference_time, include_days=definition["id"] == "week"),
             }
             for definition in WINDOW_DEFINITIONS
         ],
@@ -985,6 +1036,76 @@ def build_traffic_distribution(contexts):
     return items
 
 
+def build_reset_rows(contexts, window_definition):
+    rows = []
+    for context in contexts:
+        if not context.get("directQuotaEligible"):
+            continue
+
+        window = next((item for item in context["windows"] if item["id"] == window_definition["id"]), None)
+        if window is None:
+            continue
+
+        resets_in_seconds = window.get("resetsInSeconds")
+        reset_at = window.get("resetAt")
+        rows.append(
+            {
+                "tone": context["tone"],
+                "state": window.get("state") or "unknown",
+                "account": context["title"],
+                "meta": f"{context['badge']} · slot {short_slot(context['key'])}",
+                "remainingText": window.get("remainingText") or "Unknown",
+                "beijingTimeText": window.get("beijingTimeText") or "Unknown",
+                "valueText": window.get("valueText") or "Unknown",
+                "resetAt": reset_at,
+                "resetsInSeconds": resets_in_seconds,
+            }
+        )
+
+    rows.sort(
+        key=lambda item: (
+            0 if isinstance(item.get("resetsInSeconds"), int) and item.get("resetAt") else 1,
+            item.get("resetsInSeconds") if isinstance(item.get("resetsInSeconds"), int) else 0,
+            normalize_key(item.get("account")),
+            item.get("account") or "",
+        )
+    )
+    return rows
+
+
+def build_reset_schedule_section(contexts):
+    columns = []
+    direct_context_count = sum(1 for context in contexts if context.get("directQuotaEligible"))
+    for definition in WINDOW_DEFINITIONS:
+        rows = build_reset_rows(contexts, definition)
+        known_count = sum(1 for row in rows if isinstance(row.get("resetsInSeconds"), int) and row.get("resetAt"))
+        unknown_count = len(rows) - known_count
+        summary_bits = []
+        if known_count:
+            summary_bits.append(f"{known_count} known")
+        if unknown_count:
+            summary_bits.append(f"{unknown_count} unknown")
+        columns.append(
+            {
+                "id": definition["id"],
+                "title": definition["label"],
+                "summary": " · ".join(summary_bits) if summary_bits else "No direct quota samples yet.",
+                "items": rows,
+            }
+        )
+
+    return {
+        "title": "Reset Schedule",
+        "summary": (
+            f"{count_label(direct_context_count, 'direct-sampled account')} sorted by next reset time."
+            if direct_context_count
+            else "Direct quota sampling has not reported any accounts yet."
+        ),
+        "columns": columns,
+        "footnote": "Times are rendered in Beijing time (UTC+8). Unknown means direct sampling has not produced a reset timestamp for that window yet.",
+    }
+
+
 def build_auth_alert_items(contexts, reference_time):
     items = []
     for context in contexts:
@@ -1140,6 +1261,7 @@ def build_dashboard_snapshot(
     pool_accounts = build_pool_accounts(contexts)
     capacity_windows, _tracked_total = build_capacity_windows(contexts)
     traffic_items = build_traffic_distribution(contexts)
+    reset_schedule = build_reset_schedule_section(contexts)
 
     totals = usage_index["totals"]
     total_requests = totals["totalRequests"]
@@ -1234,6 +1356,7 @@ def build_dashboard_snapshot(
                     "in the grid but remain excluded."
                 ),
             },
+            "resets": reset_schedule,
             "traffic": {
                 "title": "Traffic Snapshot",
                 "summary": "Current CPA totals and live account split. This view does not store local history yet.",
@@ -1300,6 +1423,13 @@ def build_unavailable_snapshot(error_text):
                 capacityWindows=[],
                 accounts=[],
                 footnote="The capacity grid appears after the first successful auth-files sample.",
+            ),
+            "resets": dict(
+                EMPTY_TAB,
+                title="Reset Schedule",
+                summary="No direct quota samples yet.",
+                columns=[],
+                footnote="Reset times appear after direct Codex usage sampling reports window timestamps.",
             ),
             "traffic": dict(
                 EMPTY_TAB,

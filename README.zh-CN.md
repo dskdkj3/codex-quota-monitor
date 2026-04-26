@@ -9,10 +9,11 @@
 ## 你能直接看到什么
 
 - `Pool`：`5h` / `weekly` 已知总容量（以 Plus 为单位展示），其中 Team 按 `1:1` 计入，其它非 Plus 账号仍可见但不影响总量
+- `Resets`：按从近到远排序展示 `5h` / `weekly` 的 reset 时间，并用紧凑的北京时间显示目标时刻
 - `Traffic`：来自 `CLIProxyAPI` usage 的请求数、成功率、token 和账号分摊
 - `Alerts`：只保留硬 auth 故障、明确 quota exhausted、以及 monitor / 数据源降级
 - `Status`：gateway 连通性，以及当前 CPA 快照/刷新状态
-- `Pool`：Plus / Non-Plus 总量、以 Plus 为单位的 `5h` / `weekly` 容量，以及当前 CPA fast override 状态（`On`、`Off`、`Inherit` 或 `Unknown`）
+- `Fast`：当前 CPA fast override 状态（`On`、`Off`、`Inherit` 或 `Unknown`），显示在 Pool 指标里
 - `适配设备`：桌面浏览器、手机浏览器、e-ink 等小屏或慢刷新的浏览器
 
 ## 快速入口

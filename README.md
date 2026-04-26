@@ -9,10 +9,11 @@ Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth p
 ## At A Glance
 
 - `Pool`: 5h and weekly known capacity in Plus units, with Team counted 1:1 and other non-Plus plans remaining visible without affecting those totals
+- `Resets`: 5h and weekly reset schedules sorted from nearest to latest, with compact Beijing-time targets
 - `Traffic`: current request, success, token, and account split from `CLIProxyAPI` usage
 - `Alerts`: only hard auth failures, explicit quota exhaustion, and monitor/source degradation
 - `Status`: gateway reachability and refresh health for the current CPA snapshot
-- `Pool`: Plus / Non-Plus totals, `5h` / `weekly` capacity in Plus units, and the current CPA fast override state (`On`, `Off`, `Inherit`, or `Unknown`)
+- `Fast`: current CPA fast override state (`On`, `Off`, `Inherit`, or `Unknown`) in the Pool metrics
 - `Target devices`: desktop, mobile, and small-screen browsers
 
 ## Quick Links

@@ -39,6 +39,7 @@
 
         <nav class="tab-bar" aria-label="Dashboard tabs">
           <a class="tab" id="tab-button-pool" href="#pool" data-tab="pool">Pool</a>
+          <a class="tab" id="tab-button-resets" href="#resets" data-tab="resets">Resets</a>
           <a class="tab" id="tab-button-traffic" href="#traffic" data-tab="traffic">Traffic</a>
           <a class="tab" id="tab-button-alerts" href="#alerts" data-tab="alerts">Alerts</a>
         </nav>
@@ -53,6 +54,16 @@
           <div class="capacity-grid" id="pool-capacity"></div>
           <div class="account-grid" id="pool-accounts"></div>
           <p class="tab-footnote" id="tab-footnote-pool"></p>
+        </section>
+
+        <section class="panel tab-panel" id="tab-panel-resets">
+          <div class="panel-head">
+            <p class="eyebrow">Resets</p>
+            <h2 class="tab-title" id="tab-title-resets">Loading</h2>
+            <p class="tab-summary" id="tab-summary-resets"></p>
+          </div>
+          <div class="reset-columns" id="resets-columns"></div>
+          <p class="tab-footnote" id="tab-footnote-resets"></p>
         </section>
 
         <section class="panel tab-panel" id="tab-panel-traffic">
