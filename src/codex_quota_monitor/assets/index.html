@@ -11,16 +11,28 @@
       <section class="hero">
         <div class="hero-row">
           <div>
-            <p class="hero-kicker">Desktop · Mobile · e-ink</p>
+            <p class="hero-kicker">CLIProxyAPI · Codex OAuth Pool</p>
             <h1 class="hero-title">Codex Quota</h1>
           </div>
-          <p class="hero-subtitle">Quota-first dashboard for CLIProxyAPI Codex pools.</p>
+          <p class="hero-subtitle">Quota-first status for desktop, mobile, and small-screen browsers.</p>
         </div>
-        <div class="pill-row">
-          <span class="pill" id="gateway-pill">Loading gateway</span>
-          <span class="pill" id="five-hour-pill">Loading 5h</span>
-          <span class="pill" id="weekly-pill">Loading weekly</span>
-          <span class="pill" id="alerts-pill">Loading alerts</span>
+        <div class="summary-grid" aria-label="Quota summary">
+          <article class="summary-card is-unknown" id="gateway-card">
+            <div class="summary-label">Gateway</div>
+            <div class="summary-value" id="gateway-pill">Loading</div>
+          </article>
+          <article class="summary-card is-unknown" id="five-hour-card">
+            <div class="summary-label">5h</div>
+            <div class="summary-value" id="five-hour-pill">Loading</div>
+          </article>
+          <article class="summary-card is-unknown" id="weekly-card">
+            <div class="summary-label">Weekly</div>
+            <div class="summary-value" id="weekly-pill">Loading</div>
+          </article>
+          <article class="summary-card is-unknown" id="alerts-card">
+            <div class="summary-label">Alerts</div>
+            <div class="summary-value" id="alerts-pill">Loading</div>
+          </article>
         </div>
         <p class="hero-subline" id="hero-subline">Waiting for the first CPA snapshot.</p>
       </section>

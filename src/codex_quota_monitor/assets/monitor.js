@@ -70,6 +70,37 @@ function setClassName(id, className) {
   target.className = className;
 }
 
+function setSummaryTone(id, tone) {
+  setClassName(id, "summary-card is-" + tone);
+}
+
+function lastDisplayNumber(value) {
+  var matches = text(value, "").match(/-?\d+(?:\.\d+)?/g);
+  if (!matches || !matches.length) {
+    return null;
+  }
+  var number = Number(matches[matches.length - 1]);
+  return isNaN(number) ? null : number;
+}
+
+function summaryTone(kind, value) {
+  var lower = text(value, "").toLowerCase();
+  if (!lower || lower.indexOf("loading") !== -1 || lower.indexOf("unknown") !== -1 || lower.indexOf("unavailable") !== -1) {
+    return "unknown";
+  }
+  if (kind === "gateway") {
+    return lower.indexOf("ok") !== -1 ? "good" : "bad";
+  }
+  if (kind === "alerts") {
+    return lower.indexOf("clean") !== -1 || lower === "0 alert" || lower === "0 alerts" ? "good" : "bad";
+  }
+  var number = lastDisplayNumber(lower);
+  if (number === null) {
+    return "unknown";
+  }
+  return number <= 0 ? "bad" : "good";
+}
+
 function setText(id, value, fallback) {
   var target = document.getElementById(id);
   if (!target) {
@@ -436,16 +467,22 @@ function renderSnapshot(snapshot) {
   setText("five-hour-pill", summary.fiveHourPill, "5h unknown");
   setText("weekly-pill", summary.weeklyPill, "Weekly unknown");
   setText("alerts-pill", summary.alertsPill, "Alerts unknown");
+  setSummaryTone("gateway-card", summaryTone("gateway", summary.gatewayPill));
+  setSummaryTone("five-hour-card", summaryTone("quota", summary.fiveHourPill));
+  setSummaryTone("weekly-card", summaryTone("quota", summary.weeklyPill));
+  setSummaryTone("alerts-card", summaryTone("alerts", summary.alertsPill));
   setText("hero-subline", summary.subline, "Waiting for usage totals.");
 
   setText("source-text", safeSnapshot.sourceText, "No snapshot");
   setText("sampled-at", safeSnapshot.sampledAtText, "No sample yet");
   setText("status-text", safeSnapshot.statusText, "No status available");
 
-  if (!safeSnapshot.available || safeSnapshot.source !== "live") {
-    setClassName("status-panel", "panel status-panel is-alert");
+  if (!safeSnapshot.available) {
+    setClassName("status-panel", "panel status-panel is-bad");
+  } else if (safeSnapshot.source !== "live") {
+    setClassName("status-panel", "panel status-panel is-warn");
   } else {
-    setClassName("status-panel", "panel status-panel");
+    setClassName("status-panel", "panel status-panel is-good");
   }
 
   renderTabIfChanged("pool", tabs.pool, renderPoolTab);
@@ -467,13 +504,13 @@ function refreshSnapshot() {
       try {
         renderSnapshot(JSON.parse(request.responseText));
       } catch (error) {
-        setClassName("status-panel", "panel status-panel is-alert");
+        setClassName("status-panel", "panel status-panel is-bad");
         setText("status-text", "Refresh returned unreadable data. The page kept the previous snapshot.", "");
       }
       return;
     }
 
-    setClassName("status-panel", "panel status-panel is-alert");
+    setClassName("status-panel", "panel status-panel is-bad");
     setText("status-text", "Refresh failed. The page will keep the previous snapshot until the next retry.", "");
   };
   request.send(null);
