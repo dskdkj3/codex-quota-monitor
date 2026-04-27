@@ -1,6 +1,7 @@
 import datetime as dt
 import json
 import math
+import re
 
 from .quota import is_quota_sample_stale
 from .util import (
@@ -86,6 +87,8 @@ QUOTA_TEXT_FRAGMENTS = (
     "quota_exhausted",
     "insufficient quota",
 )
+RESET_WITH_DATE_PATTERN = re.compile(r"\bresets?\s+(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})\b", re.IGNORECASE)
+RESET_TIME_ONLY_PATTERN = re.compile(r"\bresets?\s+(\d{1,2}):(\d{2})\b", re.IGNORECASE)
 
 
 def parse_timestamp_value(value):
@@ -521,6 +524,35 @@ def is_explicit_quota_hit(auth_file, raw_message, parsed_message):
     return any(fragment in lowered for fragment in QUOTA_TEXT_FRAGMENTS)
 
 
+def extract_reset_time_from_text(raw_message, reference_time):
+    text = str(raw_message or "")
+    reference = reference_time.astimezone(BEIJING_TZ)
+
+    date_match = RESET_WITH_DATE_PATTERN.search(text)
+    if date_match:
+        month, day, hour, minute = (int(part) for part in date_match.groups())
+        try:
+            parsed = dt.datetime(reference.year, month, day, hour, minute, tzinfo=BEIJING_TZ)
+        except ValueError:
+            return None
+        if parsed < reference - dt.timedelta(hours=12):
+            parsed = parsed.replace(year=parsed.year + 1)
+        return parsed.astimezone()
+
+    time_match = RESET_TIME_ONLY_PATTERN.search(text)
+    if time_match:
+        hour, minute = (int(part) for part in time_match.groups())
+        try:
+            parsed = reference.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        except ValueError:
+            return None
+        if parsed < reference - dt.timedelta(minutes=1):
+            parsed += dt.timedelta(days=1)
+        return parsed.astimezone()
+
+    return None
+
+
 def extract_reset_time(auth_file, parsed_message, reference_time):
     for candidate in (
         find_first_matching_key(parsed_message, ("resets_at", "next_recover_at", "next_retry_after")),
@@ -537,6 +569,21 @@ def extract_reset_time(auth_file, parsed_message, reference_time):
         if seconds > 0:
             return reference_time + dt.timedelta(seconds=seconds)
     return None
+
+
+def window_has_reset_schedule(window):
+    return bool(
+        isinstance(window, dict)
+        and (window.get("resetAt") is not None or isinstance(window.get("resetsInSeconds"), int))
+    )
+
+
+def is_reset_scheduled_quota_window(window):
+    return bool(isinstance(window, dict) and window.get("state") == "exhausted" and window_has_reset_schedule(window))
+
+
+def is_hard_exhausted_quota_window(window):
+    return bool(isinstance(window, dict) and window.get("state") == "exhausted" and not window_has_reset_schedule(window))
 
 
 def quota_plan_label(auth_file, quota_sample):
@@ -764,7 +811,10 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
     parsed_message = parse_status_message_payload(raw_message)
     message_text = human_status_message(raw_message, parsed_message) if raw_message else ""
     generic_quota = is_explicit_quota_hit(auth_file, raw_message, parsed_message)
-    reset_at = extract_reset_time(auth_file, parsed_message, reference_time)
+    reset_at = extract_reset_time(auth_file, parsed_message, reference_time) or extract_reset_time_from_text(
+        raw_message,
+        reference_time,
+    )
     updated_at = auth_updated_at(auth_file)
     recent_timestamp = (usage_entry or {}).get("recentTimestamp")
     requests = safe_int((usage_entry or {}).get("requests"))
@@ -777,32 +827,10 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
     status = str(auth_file.get("status") or "").strip()
     disabled = bool(auth_file.get("disabled"))
     unavailable = bool(auth_file.get("unavailable"))
-    tone = "good"
-    issue_kind = None
-    status_label = "Active"
-
-    if generic_quota:
-        tone = "bad"
-        issue_kind = "quota"
-        status_label = "Quota hit"
-    elif disabled:
-        tone = "bad"
-        issue_kind = "auth"
-        status_label = "Disabled"
-    elif unavailable:
-        tone = "bad"
-        issue_kind = "auth"
-        status_label = "Unavailable"
-    elif status and status.lower() != "active":
-        tone = "bad" if status.lower() in {"error", "invalid"} else "warn"
-        issue_kind = "auth"
-        status_label = titleize_slug(status, fallback="Unknown")
-    elif raw_message:
-        tone = "warn"
 
     if not message_text and generic_quota:
         message_text = "Quota exhausted."
-    if reset_at is not None:
+    if reset_at is not None and "resets" not in message_text.lower():
         reset_text = f"Resets {display_compact_timestamp(reset_at, reference=reference_time)}"
         if message_text:
             message_text = f"{message_text} {reset_text}"
@@ -838,11 +866,35 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
 
     remaining_values = [window["percent"] for window in windows if isinstance(window["percent"], int)]
     remaining_floor = min(remaining_values) if remaining_values else 101
-    quota_window_exhausted = any(window["state"] == "exhausted" for window in windows)
-    quota_issue = generic_quota or quota_window_exhausted
+    reset_scheduled_window = any(is_reset_scheduled_quota_window(window) for window in windows)
+    hard_exhausted_window = any(is_hard_exhausted_quota_window(window) for window in windows)
+    quota_cooldown = (generic_quota and (reset_at is not None or reset_scheduled_window)) or reset_scheduled_window
+    quota_issue = (generic_quota and not quota_cooldown) or hard_exhausted_window
+
+    tone = "good"
+    issue_kind = None
+    status_label = "Active"
     if quota_issue:
         tone = "bad"
+        issue_kind = "quota"
         status_label = "Quota hit"
+    elif quota_cooldown:
+        tone = "warn"
+        status_label = "Reset scheduled"
+    elif disabled:
+        tone = "bad"
+        issue_kind = "auth"
+        status_label = "Disabled"
+    elif unavailable:
+        tone = "bad"
+        issue_kind = "auth"
+        status_label = "Unavailable"
+    elif status and status.lower() != "active":
+        tone = "bad" if status.lower() in {"error", "invalid"} else "warn"
+        issue_kind = "auth"
+        status_label = titleize_slug(status, fallback="Unknown")
+    elif raw_message:
+        tone = "warn"
 
     summary_bits = [status_label]
     if duplicate_labels.get(label, 0) > 1:
@@ -855,9 +907,10 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
         "badge": plan_label,
         "planKind": plan_kind,
         "tone": tone,
-        "issueKind": "quota" if quota_issue else issue_kind,
+        "issueKind": issue_kind,
         "statusLabel": status_label,
         "genericQuotaExceeded": generic_quota,
+        "quotaCooldown": quota_cooldown,
         "summary": summary,
         "meta": meta,
         "trafficText": f"{format_count(requests)} req · {format_count(failed)} fail · {format_tokens(tokens)} tok · {share_percent}% share",

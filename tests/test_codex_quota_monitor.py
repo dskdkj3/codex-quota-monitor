@@ -310,7 +310,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(sorted(account["badge"] for account in pool_accounts), ["Plus", "Team"])
         self.assertEqual(snapshot["summary"]["poolPill"], "1 Plus · 1 Non-Plus")
 
-    def test_build_dashboard_snapshot_exposes_capacity_windows_and_hard_alerts(self):
+    def test_build_dashboard_snapshot_exposes_capacity_windows_and_quota_cooldowns(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
         snapshot = MODULE.build_dashboard_snapshot(
             health_payload={"status": "ok"},
@@ -467,7 +467,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.90 Plus")
         self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 1.70 Plus")
         self.assertEqual(snapshot["summary"]["subline"], "Round Robin + Sticky · 4 req · 3.2K tok")
-        self.assertEqual(snapshot["summary"]["alertsPill"], "2 alerts")
+        self.assertEqual(snapshot["summary"]["alertsPill"], "1 alert")
         self.assertEqual(snapshot["fastMode"]["state"], "on")
         self.assertEqual(snapshot["fastMode"]["policy"], "force-priority")
         self.assertTrue(snapshot["fastMode"]["isEnabled"])
@@ -475,7 +475,7 @@ class DashboardSnapshotTests(unittest.TestCase):
 
         pool_tab = snapshot["tabs"]["pool"]
         self.assertEqual(pool_tab["title"], "Pool Capacity")
-        self.assertEqual(pool_tab["summary"], "2 Plus · 1 Non-Plus · 2 healthy · 1 issues")
+        self.assertEqual(pool_tab["summary"], "2 Plus · 1 Non-Plus · 3 healthy · 0 issues")
         self.assertEqual(pool_tab["stats"][2]["label"], "Fast")
         self.assertEqual(pool_tab["stats"][2]["value"], "On")
         self.assertEqual(
@@ -487,13 +487,14 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(pool_tab["capacityWindows"][0]["plusTotal"], 2)
         self.assertEqual(pool_tab["capacityWindows"][0]["trackedTotal"], 3)
         self.assertIn("Unclassified 1", pool_tab["capacityWindows"][0]["summary"])
-        self.assertEqual(pool_tab["accounts"][0]["title"], "account-slot")
-        self.assertEqual(pool_tab["accounts"][0]["statusLabel"], "Quota hit")
-        self.assertEqual(pool_tab["accounts"][0]["sharePercent"], 25)
-        self.assertEqual(pool_tab["accounts"][0]["failed"], 1)
-        self.assertEqual(pool_tab["accounts"][0]["tokens"], 800)
-        self.assertEqual(pool_tab["accounts"][0]["windows"][0]["valueText"], "Unknown")
-        self.assertIn("Resets", pool_tab["accounts"][0]["note"])
+        limited_account = next(account for account in pool_tab["accounts"] if account["title"] == "account-slot")
+        self.assertEqual(limited_account["statusLabel"], "Reset scheduled")
+        self.assertEqual(limited_account["tone"], "warn")
+        self.assertEqual(limited_account["sharePercent"], 25)
+        self.assertEqual(limited_account["failed"], 1)
+        self.assertEqual(limited_account["tokens"], 800)
+        self.assertEqual(limited_account["windows"][0]["valueText"], "Unknown")
+        self.assertIn("Resets", limited_account["note"])
         self.assertIn("direct Codex usage sampling", pool_tab["footnote"])
         self.assertIn("Team counts 1:1 and Prolite counts 10:1 in total capacity", pool_tab["footnote"])
         plus_known = next(account for account in pool_tab["accounts"] if account["title"] == "account-slot")
@@ -528,10 +529,10 @@ class DashboardSnapshotTests(unittest.TestCase):
 
         alerts_tab = snapshot["tabs"]["alerts"]
         self.assertEqual(alerts_tab["metrics"][0]["value"], "0")
-        self.assertEqual(alerts_tab["metrics"][1]["value"], "1")
+        self.assertEqual(alerts_tab["metrics"][1]["value"], "0")
         self.assertEqual(alerts_tab["metrics"][2]["value"], "1")
-        self.assertEqual(alerts_tab["items"][0]["badge"], "Quota")
-        self.assertEqual(alerts_tab["items"][1]["badge"], "Monitor")
+        self.assertEqual(alerts_tab["items"][0]["badge"], "Monitor")
+        self.assertNotIn("Quota", [item["badge"] for item in alerts_tab["items"]])
         self.assertIn("config: timed out", snapshot["statusText"])
         self.assertIn("direct Codex usage", snapshot["statusText"])
 
@@ -817,7 +818,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(unknown_snapshot["summary"]["fastPill"], "Fast Unknown")
         self.assertIn("successful CPA config sample", unknown_snapshot["fastMode"]["detail"])
 
-    def test_build_dashboard_snapshot_flags_non_plus_direct_exhaustion_without_affecting_plus_capacity(self):
+    def test_build_dashboard_snapshot_keeps_reset_scheduled_direct_exhaustion_out_of_alerts(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
         snapshot = MODULE.build_dashboard_snapshot(
             health_payload={"status": "ok"},
@@ -884,15 +885,49 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.50 Plus")
         self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.80 Plus")
         enterprise_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["title"] == "account-slot")
-        self.assertEqual(enterprise_account["statusLabel"], "Quota hit")
+        self.assertEqual(enterprise_account["statusLabel"], "Reset scheduled")
+        self.assertEqual(enterprise_account["tone"], "warn")
         self.assertEqual(enterprise_account["windows"][0]["valueText"], "0%")
         self.assertIn("Enterprise plan is shown in the grid but excluded from total 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
-        self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][1]["value"], "1")
+        self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][1]["value"], "0")
         five_hour_reset_accounts = [row["account"] for row in snapshot["tabs"]["resets"]["columns"][0]["items"]]
         self.assertEqual(five_hour_reset_accounts, ["account-slot", "account-slot"])
         enterprise_reset = next(row for row in snapshot["tabs"]["resets"]["columns"][0]["items"] if row["account"] == "account-slot")
         self.assertEqual(enterprise_reset["valueText"], "0%")
         self.assertEqual(enterprise_reset["beijingTimeText"], "04-21 00:00")
+
+    def test_build_dashboard_snapshot_keeps_hard_direct_exhaustion_in_alerts(self):
+        sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
+        snapshot = self.build_minimal_snapshot(
+            auth_files=[
+                {
+                    "auth_index": "acct-plus",
+                    "label": "account-slot",
+                    "status": "active",
+                    "updated_at": "2026-04-20T12:20:00+08:00",
+                    "id_token": {"plan_type": "plus"},
+                }
+            ],
+            usage_details=[],
+            quota_samples={
+                "acct-plus": {
+                    "sampledAt": sampled_at,
+                    "planType": "plus",
+                    "windows": {
+                        "5h": {"percent": 0},
+                        "week": {"percent": 80, "resetAt": dt.datetime(2026, 4, 24, 0, 0, tzinfo=dt.timezone.utc).astimezone()},
+                    },
+                    "lastError": None,
+                    "lastErrorAt": None,
+                }
+            },
+        )
+
+        account = snapshot["tabs"]["pool"]["accounts"][0]
+        self.assertEqual(account["statusLabel"], "Quota hit")
+        self.assertEqual(account["tone"], "bad")
+        self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][1]["value"], "1")
+        self.assertEqual(snapshot["tabs"]["alerts"]["items"][0]["badge"], "Quota")
 
     def test_build_dashboard_snapshot_filters_unknown_non_auth_json_entries(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
