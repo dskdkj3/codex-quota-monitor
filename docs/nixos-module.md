@@ -42,6 +42,7 @@ The flake exports `nixosModules.default` and `nixosModules.codex-quota-monitor`.
 - `services.codexQuotaMonitor.authDir`
 - `services.codexQuotaMonitor.refreshSeconds`
 - `services.codexQuotaMonitor.timeoutSeconds`
+- `services.codexQuotaMonitor.weeklyToFiveHourMultiplier`
 - `services.codexQuotaMonitor.openFirewall`
 - `services.codexQuotaMonitor.logLevel`
 
@@ -51,5 +52,6 @@ The flake exports `nixosModules.default` and `nixosModules.codex-quota-monitor`.
 - Port: `4515`
 - Firewall: closed
 - Service account: `codex-quota-monitor`
+- Weekly-to-5h multiplier: unset; weekly exhaustion still removes that account from total 5h capacity
 
 If you want LAN access from a phone or e-ink, set `listenAddress = "0.0.0.0"` and `openFirewall = true`.

@@ -6,6 +6,7 @@
 
 - `fast` 相对 baseline 的延迟和 token 行为
 - Team 账号的 `5h` / `weekly` 容量相当于多少个 Plus
+- 同账号 `5h` / `weekly` 下降比例，用来约束 dashboard 的总 `5h` 容量
 
 这个 benchmark 会为每个测试账号单独拉起一个只监听 loopback 的临时 `cli-proxy-api` 进程，并只复制那一个 auth file 进去，所以不需要改动现网 gateway 的路由。
 
@@ -21,6 +22,7 @@
 
 - `--team-selector <value>`
 - `--plus-selector <value>`，可重复传多个
+- `--prolite-selector <value>`，可选、可重复；适合用来量 weekly-to-5h cap
 
 selector 会在 `auth_index`、文件名、label、email、account、path 这些字段上做唯一匹配。如果同一个邮箱同时存在 Team 和 Plus 版本，就用完整文件名或 `auth_index`，不要只给邮箱。
 
@@ -31,7 +33,8 @@ codex-quota-benchmark \
   --management-base-url http://127.0.0.1:8318 \
   --team-selector account-slot \
   --plus-selector account-slot \
-  --plus-selector account-slot
+  --plus-selector account-slot \
+  --prolite-selector account-slot
 ```
 
 默认行为：
@@ -62,5 +65,6 @@ codex-quota-benchmark \
 
 - 性能 A/B 比的是 baseline 请求和 `service_tier = priority` 请求。
 - Team 相对 Plus 的倍率，是用同负载下 direct quota window 的真实下降量反推出来的。
+- `Weekly-to-5h Cap` 会按 Team、Plus 和可选 Prolite 账号报告 `5h_drop / weekly_drop`，并给出保守的 `recommended_dashboard_multiplier`；如果你要让 dashboard 的总 `5h` 容量受 weekly 剩余额约束，把这个值传给 `codex-quota-monitor --weekly-to-five-hour-multiplier`。
 - 如果某个 batch 跨过了 quota reset，那个 batch 会被标成无效，不会被偷偷并进平均值里。
 - 如果 Team 账号的 `5h` 或 `weekly` 任一窗口掉到 `0%`，quota benchmark 会立即停止，并在报告里把倍率部分标成不完整。

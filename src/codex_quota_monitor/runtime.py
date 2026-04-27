@@ -98,13 +98,23 @@ def refresh_alerts_for_stale_snapshot(snapshot):
 
 
 class CPAMonitor:
-    def __init__(self, management_base_url, gateway_health_url, auth_dir, refresh_seconds, logs_refresh_seconds, timeout_seconds):
+    def __init__(
+        self,
+        management_base_url,
+        gateway_health_url,
+        auth_dir,
+        refresh_seconds,
+        logs_refresh_seconds,
+        timeout_seconds,
+        weekly_to_five_hour_multiplier=None,
+    ):
         self.management_base_url = management_base_url.rstrip("/")
         self.gateway_health_url = gateway_health_url
         self.auth_dir = auth_dir or ""
         self.refresh_seconds = refresh_seconds
         self.logs_refresh_seconds = logs_refresh_seconds or max(refresh_seconds * 4, 60)
         self.timeout_seconds = timeout_seconds
+        self.weekly_to_five_hour_multiplier = weekly_to_five_hour_multiplier
         self.logger = logging.getLogger("codex-quota-monitor")
         self._lock = threading.Lock()
         self._last_snapshot = None
@@ -213,6 +223,7 @@ class CPAMonitor:
             sampled_at=sampled_at,
             endpoint_errors=endpoint_errors,
             source=source,
+            weekly_to_five_hour_multiplier=self.weekly_to_five_hour_multiplier,
         )
         self.logger.info(
             "sample source=%s auth_files=%s quota_status=%s quota_fresh=%s/%s total_requests=%s total_tokens=%s alerts=%s",

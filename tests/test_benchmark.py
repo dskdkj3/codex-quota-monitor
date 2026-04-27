@@ -73,13 +73,22 @@ class BenchmarkHelperTests(unittest.TestCase):
                 "path": "/tmp/team.json",
                 "id_token": {"plan_type": "team", "chatgpt_account_id": "acct-team"},
             },
+            {
+                "auth_index": "prolite-slot",
+                "label": "account-slot",
+                "name": "prolite.json",
+                "path": "/tmp/prolite.json",
+                "id_token": {"plan_type": "pro_lite", "chatgpt_account_id": "acct-prolite"},
+            },
         ]
 
         plus = resolve_auth_file(auth_files, "plus-slot", "plus")
         team = resolve_auth_file(auth_files, "team.json", "team")
+        prolite = resolve_auth_file(auth_files, "prolite-slot", "prolite")
 
         self.assertEqual(plus.plan_type, "plus")
         self.assertEqual(team.account_id, "acct-team")
+        self.assertEqual(prolite.account_id, "acct-prolite")
 
         with self.assertRaisesRegex(Exception, "non-Plus"):
             resolve_auth_file(auth_files, "team-slot", "plus")
@@ -261,6 +270,10 @@ class QuotaSummaryTests(unittest.TestCase):
         self.assertEqual(summary["aggregate"]["5h"]["mean_ratio_in_plus_units"], 5.0)
         self.assertEqual(summary["aggregate"]["week"]["mean_ratio_in_plus_units"], 5.0)
         self.assertEqual(summary["per_plus"][0]["plus_label"], "account-slot")
+        weekly_to_five_hour = summary["weeklyToFiveHour"]
+        self.assertEqual(weekly_to_five_hour["recommended_dashboard_multiplier"], 2.0)
+        self.assertEqual(weekly_to_five_hour["min_five_hour_per_weekly_percent"], 2.0)
+        self.assertEqual(weekly_to_five_hour["max_five_hour_per_weekly_percent"], 2.0)
 
     def test_build_quota_summary_marks_team_exhaustion_incomplete(self):
         team_gateway = type(
@@ -282,6 +295,34 @@ class QuotaSummaryTests(unittest.TestCase):
         self.assertEqual(summary["stopReason"], "team-quota-exhausted")
         self.assertEqual(summary["teamExhaustion"]["windows"], ["5h"])
 
+    def test_build_quota_summary_includes_prolite_weekly_to_five_hour_ratio(self):
+        team_gateway = type(
+            "Gateway",
+            (),
+            {"account": type("Account", (), {"auth_index": "team-slot", "label": "account-slot"})()},
+        )()
+        prolite_gateway = type(
+            "Gateway",
+            (),
+            {"account": type("Account", (), {"auth_index": "prolite-slot", "label": "account-slot"})()},
+        )()
+
+        summary = build_quota_summary(
+            team_gateway,
+            [],
+            {
+                "team": {"team-slot": {"5h": 0.0, "week": 0.0}},
+                "prolite": {"prolite-slot": {"5h": 6.0, "week": 2.0}},
+            },
+            [],
+            prolite_gateways=[prolite_gateway],
+            stop_reason="team-quota-exhausted",
+        )
+
+        weekly_to_five_hour = summary["weeklyToFiveHour"]
+        self.assertEqual(weekly_to_five_hour["recommended_dashboard_multiplier"], 3.0)
+        self.assertEqual(weekly_to_five_hour["accounts"][1]["role"], "prolite")
+
     def test_build_report_mentions_summary_files(self):
         report = build_report(
             type(
@@ -296,13 +337,52 @@ class QuotaSummaryTests(unittest.TestCase):
             )(),
             [PromptCase("short-01", "short", "hello")],
             {"baseline": {"p50_latency_ms": 20.0, "p90_latency_ms": 25.0}, "fast": {"p50_latency_ms": 10.0, "p90_latency_ms": 15.0}, "comparison": {"speedup_p50": 2.0, "speedup_p90": 1.6667, "token_overhead_ratio": 0.1}},
-            {"aggregate": {"5h": {"mean_ratio_in_plus_units": 5.0, "min_ratio_in_plus_units": 5.0, "max_ratio_in_plus_units": 5.0}, "week": {"mean_ratio_in_plus_units": 4.5, "min_ratio_in_plus_units": 4.5, "max_ratio_in_plus_units": 4.5}}, "per_plus": [{"plus_label": "account-slot", "ratios": {"5h": {"ratio_in_plus_units": 5.0}, "week": {"ratio_in_plus_units": 4.5}}}]},
+            {
+                "aggregate": {
+                    "5h": {
+                        "mean_ratio_in_plus_units": 5.0,
+                        "min_ratio_in_plus_units": 5.0,
+                        "max_ratio_in_plus_units": 5.0,
+                    },
+                    "week": {
+                        "mean_ratio_in_plus_units": 4.5,
+                        "min_ratio_in_plus_units": 4.5,
+                        "max_ratio_in_plus_units": 4.5,
+                    },
+                },
+                "per_plus": [
+                    {
+                        "plus_label": "account-slot",
+                        "ratios": {
+                            "5h": {"ratio_in_plus_units": 5.0},
+                            "week": {"ratio_in_plus_units": 4.5},
+                        },
+                    }
+                ],
+                "weeklyToFiveHour": {
+                    "recommended_dashboard_multiplier": 3.5,
+                    "mean_five_hour_per_weekly_percent": 3.75,
+                    "min_five_hour_per_weekly_percent": 3.5,
+                    "max_five_hour_per_weekly_percent": 4.0,
+                    "accounts": [
+                        {
+                            "role": "plus",
+                            "label": "account-slot",
+                            "five_hour_drop": 7.0,
+                            "weekly_drop": 2.0,
+                            "five_hour_per_weekly_percent": 3.5,
+                        }
+                    ],
+                },
+            },
             pathlib.Path("/tmp/out"),
         )
 
         self.assertIn("requests.csv", report)
         self.assertIn("summary.json", report)
         self.assertIn("account-slot", report)
+        self.assertIn("Weekly-to-5h Cap", report)
+        self.assertIn("3.50", report)
 
     def test_write_csv_supports_mixed_phase_fields(self):
         rows = [

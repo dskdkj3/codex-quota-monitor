@@ -10,10 +10,23 @@ def read_env(primary_name, legacy_name, fallback):
     value = os.environ.get(primary_name)
     if value not in (None, ""):
         return value
-    value = os.environ.get(legacy_name)
-    if value not in (None, ""):
-        return value
+    if legacy_name:
+        value = os.environ.get(legacy_name)
+        if value not in (None, ""):
+            return value
     return fallback
+
+
+def optional_positive_float(value):
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    if number <= 0:
+        raise argparse.ArgumentTypeError("must be greater than 0")
+    return number
 
 
 def parse_args(argv=None):
@@ -65,6 +78,14 @@ def parse_args(argv=None):
         default=read_env("CODEX_QUOTA_MONITOR_AUTH_DIR", "CODEX_MONITOR_AUTH_DIR", ""),
     )
     parser.add_argument(
+        "--weekly-to-five-hour-multiplier",
+        type=optional_positive_float,
+        default=optional_positive_float(
+            read_env("CODEX_QUOTA_MONITOR_WEEKLY_TO_FIVE_HOUR_MULTIPLIER", None, "")
+        ),
+        help="Optional cap for total 5h capacity: effective 5h percent is min(raw 5h, weekly percent * multiplier).",
+    )
+    parser.add_argument(
         "--log-level",
         default=read_env("CODEX_QUOTA_MONITOR_LOG_LEVEL", "CODEX_MONITOR_LOG_LEVEL", "INFO"),
     )
@@ -85,6 +106,7 @@ def main(argv=None):
         refresh_seconds=args.refresh_seconds,
         logs_refresh_seconds=args.logs_refresh_seconds,
         timeout_seconds=args.timeout_seconds,
+        weekly_to_five_hour_multiplier=args.weekly_to_five_hour_multiplier,
     )
 
     MonitorRequestHandler.monitor = monitor

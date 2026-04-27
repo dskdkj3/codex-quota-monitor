@@ -274,6 +274,18 @@ def is_capacity_tracked_plan(plan_kind):
     return capacity_plan_weight(plan_kind) > 0.0
 
 
+def normalize_weekly_to_five_hour_multiplier(value):
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number <= 0:
+        return None
+    return number
+
+
 def short_slot(value):
     text = str(value or "").strip()
     if not text:
@@ -974,7 +986,42 @@ def build_account_contexts(auth_files, usage_index, reference_time, quota_payloa
     return contexts, plan_counts
 
 
-def build_capacity_windows(contexts):
+def context_window(context, window_id):
+    for window in context["windows"]:
+        if window["id"] == window_id:
+            return window
+    return None
+
+
+def is_known_capacity_window(window):
+    return bool(window and window["state"] in {"known", "exhausted"} and window["percent"] is not None)
+
+
+def effective_capacity_percent(context, window_id, weekly_to_five_hour_multiplier):
+    window = context_window(context, window_id)
+    if not is_known_capacity_window(window):
+        return None, False
+
+    percent = max(0.0, min(100.0, float(window["percent"])))
+    if window_id != "5h":
+        return percent, False
+
+    weekly_window = context_window(context, "week")
+    if not is_known_capacity_window(weekly_window):
+        return percent, False
+
+    weekly_percent = max(0.0, min(100.0, float(weekly_window["percent"])))
+    cap_percent = 0.0 if weekly_percent <= 0.0 else None
+    if cap_percent is None and weekly_to_five_hour_multiplier is not None:
+        cap_percent = min(100.0, weekly_percent * weekly_to_five_hour_multiplier)
+
+    if cap_percent is not None and percent > cap_percent:
+        return cap_percent, True
+    return percent, False
+
+
+def build_capacity_windows(contexts, weekly_to_five_hour_multiplier=None):
+    weekly_to_five_hour_multiplier = normalize_weekly_to_five_hour_multiplier(weekly_to_five_hour_multiplier)
     plus_total = sum(1 for context in contexts if is_plus_plan(context["planKind"]))
     tracked_contexts = [
         (context, capacity_plan_weight(context["planKind"]))
@@ -992,14 +1039,26 @@ def build_capacity_windows(contexts):
         exhausted_count = 0
         unclassified_count = 0
         stale_count = 0
+        weekly_capped_count = 0
 
         for context, weight in tracked_contexts:
-            window = next(item for item in context["windows"] if item["id"] == definition["id"])
-            if window["state"] in {"known", "exhausted"} and window["percent"] is not None:
-                known_units += (float(window["percent"]) / 100.0) * weight
-                if window["percent"] <= 0:
+            window = context_window(context, definition["id"])
+            effective_percent, weekly_capped = effective_capacity_percent(
+                context,
+                definition["id"],
+                weekly_to_five_hour_multiplier,
+            )
+            if effective_percent is not None:
+                known_units += (effective_percent / 100.0) * weight
+                if effective_percent <= 0:
                     exhausted_count += 1
-                if window.get("stale"):
+                if weekly_capped:
+                    weekly_capped_count += 1
+                if weekly_capped:
+                    weekly_window = context_window(context, "week")
+                    if window.get("stale") or (weekly_window and weekly_window.get("stale")):
+                        stale_count += 1
+                elif window.get("stale"):
                     stale_count += 1
                 continue
             if context["genericQuotaExceeded"]:
@@ -1018,6 +1077,8 @@ def build_capacity_windows(contexts):
             summary_bits.append(f"Exhausted {exhausted_count}")
         if unclassified_count:
             summary_bits.append(f"Unclassified {unclassified_count}")
+        if weekly_capped_count:
+            summary_bits.append(f"Weekly-capped {weekly_capped_count}")
 
         pill_suffix = ""
         if unknown_count > 0:
@@ -1036,6 +1097,7 @@ def build_capacity_windows(contexts):
                 "exhaustedCount": exhausted_count,
                 "unclassifiedCount": unclassified_count,
                 "staleCount": stale_count,
+                "weeklyCappedCount": weekly_capped_count,
                 "knownBarPercent": known_bar_percent,
                 "unknownBarPercent": unknown_bar_percent,
                 "summary": " · ".join(summary_bits) if tracked_total > 0 else "No tracked capacity accounts in the pool.",
@@ -1302,12 +1364,16 @@ def build_dashboard_snapshot(
     sampled_at,
     endpoint_errors=None,
     source="live",
+    weekly_to_five_hour_multiplier=None,
 ):
     auth_files = [auth_file for auth_file in ((auth_files_payload or {}).get("files") or []) if is_dashboard_auth_file(auth_file)]
     usage_index = build_usage_index(usage_payload)
     contexts, plan_counts = build_account_contexts(auth_files, usage_index, sampled_at, quota_payload)
     pool_accounts = build_pool_accounts(contexts)
-    capacity_windows, _tracked_total = build_capacity_windows(contexts)
+    capacity_windows, _tracked_total = build_capacity_windows(
+        contexts,
+        weekly_to_five_hour_multiplier=weekly_to_five_hour_multiplier,
+    )
     traffic_items = build_traffic_distribution(contexts)
     reset_schedule = build_reset_schedule_section(contexts)
 
@@ -1361,6 +1427,14 @@ def build_dashboard_snapshot(
     fast_value = fast_mode["label"]
     if fast_value.startswith("Fast "):
         fast_value = fast_value[5:]
+    weekly_multiplier = normalize_weekly_to_five_hour_multiplier(weekly_to_five_hour_multiplier)
+    if weekly_multiplier is None:
+        capacity_policy = "weekly exhaustion removes an account from 5h total capacity."
+    else:
+        capacity_policy = (
+            "5h total capacity is capped by weekly remaining times "
+            f"{format_fractional_count(weekly_multiplier)}; weekly exhaustion removes the account entirely."
+        )
 
     return {
         "available": True,
@@ -1401,7 +1475,8 @@ def build_dashboard_snapshot(
                     f"{quota_refresh_seconds(quota_payload) or 15}s. CLIProxyAPI still supplies pool membership and "
                     "traffic. Unknown means there is no successful direct sample yet; cached values may remain visible if "
                     "the direct quota source degrades. Team counts 1:1 and Prolite counts 10:1 in total capacity; "
-                    "other non-Plus plans stay visible in the grid but remain excluded."
+                    "other non-Plus plans stay visible in the grid but remain excluded. "
+                    + capacity_policy
                 ),
             },
             "resets": reset_schedule,

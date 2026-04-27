@@ -8,7 +8,7 @@ Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth p
 
 ## At A Glance
 
-- `Pool`: 5h and weekly known capacity in Plus units, with Team counted 1:1, Prolite counted 10:1, and other non-Plus plans remaining visible without affecting those totals
+- `Pool`: 5h and weekly known capacity in Plus units, with Team counted 1:1, Prolite counted 10:1, and other non-Plus plans remaining visible without affecting those totals; an account with exhausted weekly quota contributes `0` to total 5h capacity
 - `Resets`: 5h and weekly reset schedules sorted from nearest to latest, with compact Beijing-time targets
 - `Traffic`: current request, success, token, and account split from `CLIProxyAPI` usage
 - `Alerts`: only hard auth failures, explicit quota exhaustion, and monitor/source degradation
@@ -35,6 +35,7 @@ nix run .#codex-quota-monitor -- \
 ```
 
 The default bind is `127.0.0.1:4515`. If you want phone or e-ink access on the local network, pass `--host 0.0.0.0` and expose the port intentionally.
+If you have measured the relationship between weekly and 5h quota drops, pass `--weekly-to-five-hour-multiplier <number>` to cap total 5h capacity by weekly remaining capacity. The benchmark report includes a conservative recommended value.
 
 ### Run With Python
 
@@ -58,10 +59,11 @@ When you want hard numbers for `fast` versus baseline, or Team versus Plus quota
 codex-quota-benchmark \
   --management-base-url http://127.0.0.1:8318 \
   --team-selector team-auth-file-name.json \
-  --plus-selector plus-auth-file-name.json
+  --plus-selector plus-auth-file-name.json \
+  --prolite-selector prolite-auth-file-name.json
 ```
 
-The full workflow, selector rules, and output files are documented in [Benchmark guide](docs/benchmark.md).
+The full workflow, selector rules, output files, and weekly-to-5h multiplier report are documented in [Benchmark guide](docs/benchmark.md).
 
 ## What The Monitor Needs
 

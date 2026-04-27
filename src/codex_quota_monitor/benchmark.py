@@ -3,6 +3,7 @@ import csv
 import datetime as dt
 import json
 import logging
+import math
 import os
 import pathlib
 import re
@@ -115,6 +116,10 @@ def resolve_auth_file(auth_files, selector, expected_plan_kind):
         raise BenchmarkError(f"selector {selector!r} resolved to non-Plus auth file {match.get('name')!r} ({plan_type})")
     if expected_plan_kind == "team" and "team" not in normalized_plan:
         raise BenchmarkError(f"selector {selector!r} resolved to non-Team auth file {match.get('name')!r} ({plan_type})")
+    if expected_plan_kind == "prolite" and normalized_plan != "prolite":
+        raise BenchmarkError(
+            f"selector {selector!r} resolved to non-Prolite auth file {match.get('name')!r} ({plan_type})"
+        )
     if not str(match.get("path") or "").strip():
         raise BenchmarkError(f"selector {selector!r} resolved auth file without a readable path")
 
@@ -454,7 +459,12 @@ class TemporaryGateway:
     def __enter__(self):
         self.gateway_dir.mkdir(parents=True, exist_ok=True)
         self.auth_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(self.account.path, self.auth_dir / pathlib.Path(self.account.path).name)
+        try:
+            shutil.copy2(self.account.path, self.auth_dir / pathlib.Path(self.account.path).name)
+        except OSError as exc:
+            raise BenchmarkError(
+                f"cannot copy auth file for {self.account.label}: {self.account.path}: {compact_error(exc)}"
+            ) from exc
         self.config_path.write_text(build_gateway_config(str(self.auth_dir), self.port, self.api_key), encoding="utf-8")
         self._stdout_handle = open(self.stdout_path, "w", encoding="utf-8")
         self._stderr_handle = open(self.stderr_path, "w", encoding="utf-8")
@@ -626,21 +636,75 @@ def accumulate_quota_drop(accumulator, account_key, window_id, drop_value):
     account_windows[window_id] = round(float(account_windows.get(window_id) or 0.0) + float(drop_value or 0.0), 6)
 
 
-def perform_quota_runs(args, team_gateway, plus_gateways, prompt_cases, request_records):
+def floored_two_decimals(value):
+    if value is None:
+        return None
+    floored = math.floor(float(value) * 100.0) / 100.0
+    if floored <= 0:
+        return None
+    return round(floored, 2)
+
+
+def build_weekly_to_five_hour_summary(team_gateway, plus_gateways, prolite_gateways, accumulators):
+    participants = (
+        [("team", team_gateway)]
+        + [("plus", gateway) for gateway in plus_gateways]
+        + [("prolite", gateway) for gateway in prolite_gateways]
+    )
+    items = []
+    ratios = []
+
+    for role, gateway in participants:
+        windows = accumulators.get(role, {}).get(gateway.account.auth_index, {})
+        five_hour_drop = windows.get("5h")
+        weekly_drop = windows.get("week")
+        ratio = None
+        if five_hour_drop and weekly_drop and float(weekly_drop) > 0:
+            ratio = round(float(five_hour_drop) / float(weekly_drop), 6)
+            ratios.append(ratio)
+        items.append(
+            {
+                "role": role,
+                "auth_index": gateway.account.auth_index,
+                "label": gateway.account.label,
+                "five_hour_drop": five_hour_drop,
+                "weekly_drop": weekly_drop,
+                "five_hour_per_weekly_percent": ratio,
+            }
+        )
+
+    return {
+        "recommended_dashboard_multiplier": floored_two_decimals(min(ratios)) if ratios else None,
+        "mean_five_hour_per_weekly_percent": round(statistics.fmean(ratios), 6) if ratios else None,
+        "min_five_hour_per_weekly_percent": round(min(ratios), 6) if ratios else None,
+        "max_five_hour_per_weekly_percent": round(max(ratios), 6) if ratios else None,
+        "accounts": items,
+    }
+
+
+def perform_quota_runs(args, team_gateway, plus_gateways, prompt_cases, request_records, prolite_gateways=None):
+    prolite_gateways = prolite_gateways or []
     logging.getLogger("codex-quota-benchmark").info(
-        "running quota benchmark with %s plus reference(s), batch size %s, max rounds %s",
+        "running quota benchmark with %s plus reference(s), %s prolite reference(s), batch size %s, max rounds %s",
         len(plus_gateways),
+        len(prolite_gateways),
         args.quota_batch_size,
         args.quota_max_rounds,
     )
     tier_label = "fast" if args.quota_service_tier == "fast" else "baseline"
-    accumulators = {"team": {}, "plus": {}}
+    accumulators = {"team": {}, "plus": {}, "prolite": {}}
     quota_batches = []
     stop_reason = ""
     team_exhaustion = None
 
     for round_index in range(1, args.quota_max_rounds + 1):
-        participants = [("team", team_gateway)] + [("plus", gateway) for gateway in plus_gateways]
+        # Run references first so an already exhausted Team account still leaves
+        # useful weekly-to-5h observations from Plus or Prolite accounts.
+        participants = [("prolite", gateway) for gateway in prolite_gateways] + [
+            ("plus", gateway) for gateway in plus_gateways
+        ]
+        if team_exhaustion is None:
+            participants.append(("team", team_gateway))
         for role, gateway in participants:
             before = sample_quota(gateway.account, args.request_timeout_seconds)
             for offset in range(args.quota_batch_size):
@@ -688,6 +752,8 @@ def perform_quota_runs(args, team_gateway, plus_gateways, prompt_cases, request_
                         "windows": exhausted,
                     }
                     batch["stopReason"] = stop_reason
+                    if prolite_gateways:
+                        stop_reason = ""
                     break
 
         if stop_reason:
@@ -703,6 +769,14 @@ def perform_quota_runs(args, team_gateway, plus_gateways, prompt_cases, request_
         ]
         team_5h_value = accumulators["team"].get(team_gateway.account.auth_index, {}).get("5h", 0.0)
         team_week_value = accumulators["team"].get(team_gateway.account.auth_index, {}).get("week", 0.0)
+        prolite_5h_values = [
+            accumulators["prolite"].get(gateway.account.auth_index, {}).get("5h", 0.0)
+            for gateway in prolite_gateways
+        ]
+        prolite_week_values = [
+            accumulators["prolite"].get(gateway.account.auth_index, {}).get("week", 0.0)
+            for gateway in prolite_gateways
+        ]
         if (
             plus_5h_values
             and min(plus_5h_values) >= args.quota_five_hour_threshold
@@ -711,6 +785,14 @@ def perform_quota_runs(args, team_gateway, plus_gateways, prompt_cases, request_
             and team_week_value > 0.0
         ):
             stop_reason = "thresholds-met"
+            break
+        if (
+            team_exhaustion
+            and prolite_5h_values
+            and min(prolite_5h_values) >= args.quota_five_hour_threshold
+            and min(prolite_week_values) >= args.quota_weekly_threshold
+        ):
+            stop_reason = "reference-thresholds-met"
             break
 
     if not stop_reason:
@@ -721,12 +803,23 @@ def perform_quota_runs(args, team_gateway, plus_gateways, prompt_cases, request_
         plus_gateways,
         accumulators,
         quota_batches,
+        prolite_gateways=prolite_gateways,
         stop_reason=stop_reason,
         team_exhaustion=team_exhaustion,
     )
 
 
-def build_quota_summary(team_gateway, plus_gateways, accumulators, quota_batches, *, stop_reason="", team_exhaustion=None):
+def build_quota_summary(
+    team_gateway,
+    plus_gateways,
+    accumulators,
+    quota_batches,
+    *,
+    prolite_gateways=None,
+    stop_reason="",
+    team_exhaustion=None,
+):
+    prolite_gateways = prolite_gateways or []
     team_key = team_gateway.account.auth_index
     team_windows = accumulators.get("team", {}).get(team_key, {})
     per_plus = []
@@ -767,10 +860,17 @@ def build_quota_summary(team_gateway, plus_gateways, accumulators, quota_batches
         "team_label": team_gateway.account.label,
         "stopReason": stop_reason,
         "complete": stop_reason == "thresholds-met",
+        "referenceComplete": stop_reason in {"thresholds-met", "reference-thresholds-met"},
         "teamExhaustion": team_exhaustion,
         "team_windows": team_windows,
         "per_plus": per_plus,
         "aggregate": aggregate,
+        "weeklyToFiveHour": build_weekly_to_five_hour_summary(
+            team_gateway,
+            plus_gateways,
+            prolite_gateways or [],
+            accumulators,
+        ),
         "batches": quota_batches,
     }
 
@@ -804,6 +904,7 @@ def format_metric(value, digits=3):
 
 
 def build_report(args, prompt_cases, performance_summary, quota_summary, output_dir):
+    prolite_selectors = getattr(args, "prolite_selectors", []) or []
     lines = [
         "# Codex Quota Benchmark",
         "",
@@ -816,6 +917,7 @@ def build_report(args, prompt_cases, performance_summary, quota_summary, output_
         f"- prompt_count: `{len(prompt_cases)}`",
         f"- plus_selectors: `{', '.join(args.plus_selectors)}`",
         f"- team_selector: `{args.team_selector}`",
+        f"- prolite_selectors: `{', '.join(prolite_selectors) or 'omitted'}`",
         "",
         "## Performance",
         "",
@@ -841,6 +943,8 @@ def build_report(args, prompt_cases, performance_summary, quota_summary, output_
     lines.extend(["", "## Quota Ratios", ""])
     if quota_summary:
         lines.append(f"- stop reason: `{quota_summary.get('stopReason') or 'unknown'}`")
+        if quota_summary.get("referenceComplete") and not quota_summary.get("complete"):
+            lines.append("- reference quota thresholds were met for weekly-to-5h measurement; Team-vs-Plus ratios remain incomplete.")
         if quota_summary.get("teamExhaustion"):
             exhaustion = quota_summary["teamExhaustion"]
             lines.append(
@@ -865,6 +969,28 @@ def build_report(args, prompt_cases, performance_summary, quota_summary, output_
                 f"{format_metric((item['ratios'].get('5h') or {}).get('ratio_in_plus_units'), 4)} | "
                 f"{format_metric((item['ratios'].get('week') or {}).get('ratio_in_plus_units'), 4)} |"
             )
+        weekly_to_five_hour = quota_summary.get("weeklyToFiveHour") or {}
+        lines.extend(["", "## Weekly-to-5h Cap", ""])
+        lines.append(
+            "- recommended dashboard multiplier: "
+            f"`{format_metric(weekly_to_five_hour.get('recommended_dashboard_multiplier'), 2)}` "
+            "(1% weekly remaining caps 5h remaining by this many 5h percentage points)"
+        )
+        lines.append(
+            f"- observed mean: `{format_metric(weekly_to_five_hour.get('mean_five_hour_per_weekly_percent'), 4)}`"
+            f", range `{format_metric(weekly_to_five_hour.get('min_five_hour_per_weekly_percent'), 4)}`"
+            f" .. `{format_metric(weekly_to_five_hour.get('max_five_hour_per_weekly_percent'), 4)}`"
+        )
+        lines.append("")
+        lines.append("| Account | Role | 5h Drop | Weekly Drop | 5h / Weekly |")
+        lines.append("| --- | --- | ---: | ---: | ---: |")
+        for item in weekly_to_five_hour.get("accounts") or []:
+            lines.append(
+                f"| {item['label']} | {item['role']} | "
+                f"{format_metric(item.get('five_hour_drop'), 4)} | "
+                f"{format_metric(item.get('weekly_drop'), 4)} | "
+                f"{format_metric(item.get('five_hour_per_weekly_percent'), 4)} |"
+            )
     else:
         lines.append("- skipped")
 
@@ -882,13 +1008,14 @@ def build_report(args, prompt_cases, performance_summary, quota_summary, output_
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="Benchmark fast-vs-baseline latency and Team-vs-Plus quota ratios.")
+    parser = argparse.ArgumentParser(description="Benchmark fast-vs-baseline latency and Codex quota ratios.")
     parser.add_argument("--management-base-url", default=DEFAULT_MANAGEMENT_BASE_URL)
     parser.add_argument("--cli-proxy-api-bin", default="")
     parser.add_argument("--output-dir", default=str(default_output_dir()))
     parser.add_argument("--prompt-file", default="")
     parser.add_argument("--plus-selector", dest="plus_selectors", action="append", required=True)
     parser.add_argument("--team-selector", required=True)
+    parser.add_argument("--prolite-selector", dest="prolite_selectors", action="append", default=[])
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--reasoning-effort", default="")
     parser.add_argument("--api-key", default=DEFAULT_API_KEY)
@@ -920,6 +1047,7 @@ def main(argv=None):
     auth_files = fetch_auth_files(args.management_base_url, args.request_timeout_seconds)
     plus_accounts = [resolve_auth_file(auth_files, selector, "plus") for selector in args.plus_selectors]
     team_account = resolve_auth_file(auth_files, args.team_selector, "team")
+    prolite_accounts = [resolve_auth_file(auth_files, selector, "prolite") for selector in args.prolite_selectors]
     cli_proxy_api_bin = discover_cli_proxy_api_bin(args.cli_proxy_api_bin)
 
     config_payload = {
@@ -930,6 +1058,7 @@ def main(argv=None):
         "reasoningEffort": args.reasoning_effort,
         "plusAccounts": [account.__dict__ for account in plus_accounts],
         "teamAccount": team_account.__dict__,
+        "proliteAccounts": [account.__dict__ for account in prolite_accounts],
         "promptCount": len(prompt_cases),
     }
     (output_dir / "config.json").write_text(
@@ -966,11 +1095,31 @@ def main(argv=None):
                 )
                 plus_gateways.append(gateway.__enter__())
                 gateways.append(gateway)
+            prolite_gateways = []
+            for account in prolite_accounts:
+                gateway = TemporaryGateway(
+                    cli_proxy_api_bin=cli_proxy_api_bin,
+                    account=account,
+                    work_root=work_root,
+                    api_key=args.api_key,
+                    model=args.model,
+                    timeout_seconds=args.request_timeout_seconds,
+                )
+                prolite_gateways.append(gateway.__enter__())
+                gateways.append(gateway)
 
             if not args.skip_performance:
-                performance_summary = perform_performance_runs(args, plus_gateways[0], prompt_cases, request_records)
+                performance_gateway = prolite_gateways[0] if prolite_gateways else plus_gateways[0]
+                performance_summary = perform_performance_runs(args, performance_gateway, prompt_cases, request_records)
             if not args.skip_quota:
-                quota_summary = perform_quota_runs(args, team_gateway, plus_gateways, prompt_cases, request_records)
+                quota_summary = perform_quota_runs(
+                    args,
+                    team_gateway,
+                    plus_gateways,
+                    prompt_cases,
+                    request_records,
+                    prolite_gateways=prolite_gateways,
+                )
 
             if args.keep_work_dir:
                 destination = output_dir / "gateway-workdir"

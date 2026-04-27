@@ -79,6 +79,12 @@ in
       description = "HTTP timeout used for upstream health and management requests.";
     };
 
+    weeklyToFiveHourMultiplier = mkOption {
+      type = types.nullOr types.number;
+      default = null;
+      description = "Optional cap for total 5h capacity: effective 5h percent is min(raw 5h, weekly percent times this multiplier).";
+    };
+
     openFirewall = mkOption {
       type = types.bool;
       default = false;
@@ -132,7 +138,9 @@ in
           + "--management-base-url ${escapeShellArg cfg.managementBaseUrl} "
           + "--gateway-health-url ${escapeShellArg cfg.gatewayHealthUrl} "
           + "--log-level ${escapeShellArg cfg.logLevel}"
-          + optionalString (cfg.authDir != null) " --auth-dir ${escapeShellArg cfg.authDir}";
+          + optionalString (cfg.authDir != null) " --auth-dir ${escapeShellArg cfg.authDir}"
+          + optionalString (cfg.weeklyToFiveHourMultiplier != null)
+            " --weekly-to-five-hour-multiplier ${toString cfg.weeklyToFiveHourMultiplier}";
         Restart = "on-failure";
         RestartSec = "5s";
         LockPersonality = true;

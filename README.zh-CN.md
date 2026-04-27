@@ -8,7 +8,7 @@
 
 ## 你能直接看到什么
 
-- `Pool`：`5h` / `weekly` 已知总容量（以 Plus 为单位展示），其中 Team 按 `1:1` 计入、Prolite 按 `10:1` 计入，其它非 Plus 账号仍可见但不影响总量
+- `Pool`：`5h` / `weekly` 已知总容量（以 Plus 为单位展示），其中 Team 按 `1:1` 计入、Prolite 按 `10:1` 计入，其它非 Plus 账号仍可见但不影响总量；账号 weekly 已耗尽时，对总 `5h` 容量贡献为 `0`
 - `Resets`：按从近到远排序展示 `5h` / `weekly` 的 reset 时间，并用紧凑的北京时间显示目标时刻
 - `Traffic`：来自 `CLIProxyAPI` usage 的请求数、成功率、token 和账号分摊
 - `Alerts`：只保留硬 auth 故障、明确 quota exhausted、以及 monitor / 数据源降级
@@ -35,6 +35,7 @@ nix run .#codex-quota-monitor -- \
 ```
 
 默认监听在 `127.0.0.1:4515`。如果你要让手机或 e-ink 通过局域网访问，需要显式传 `--host 0.0.0.0`，并且有意识地开放端口。
+如果你已经实测出 weekly 和 5h quota 下降之间的关系，可以传 `--weekly-to-five-hour-multiplier <数字>`，让总 `5h` 容量受 weekly 剩余额约束。Benchmark 报告会给一个保守推荐值。
 
 ### 用 Python 运行
 
@@ -58,10 +59,11 @@ codex-quota-monitor \
 codex-quota-benchmark \
   --management-base-url http://127.0.0.1:8318 \
   --team-selector team-auth-file-name.json \
-  --plus-selector plus-auth-file-name.json
+  --plus-selector plus-auth-file-name.json \
+  --prolite-selector prolite-auth-file-name.json
 ```
 
-完整流程、selector 规则和输出文件解释见 [Benchmark 指南](docs/benchmark.zh-CN.md)。
+完整流程、selector 规则、输出文件和 weekly-to-5h multiplier 报告解释见 [Benchmark 指南](docs/benchmark.zh-CN.md)。
 
 ## 这个项目依赖什么上游
 

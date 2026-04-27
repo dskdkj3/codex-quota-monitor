@@ -6,6 +6,7 @@ Use `codex-quota-benchmark` when you want two measurements from the same CLIProx
 
 - `fast` versus baseline latency and token behavior
 - Team-account 5h and weekly capacity expressed in Plus-account units
+- the observed 5h-to-weekly drop ratio that can cap dashboard 5h totals
 
 The benchmark isolates traffic by launching temporary loopback-only `cli-proxy-api` processes, each with exactly one copied auth file. It does not need to mutate the live gateway routing.
 
@@ -21,6 +22,7 @@ You identify accounts with selectors instead of raw paths:
 
 - `--team-selector <value>`
 - `--plus-selector <value>` (repeatable)
+- `--prolite-selector <value>` (optional, repeatable; useful for weekly-to-5h cap measurement)
 
 A selector matches against `auth_index`, file name, label, email, account, or path. The match must be unique. If the same email exists in both Team and Plus form, use the full file name or `auth_index`.
 
@@ -31,7 +33,8 @@ codex-quota-benchmark \
   --management-base-url http://127.0.0.1:8318 \
   --team-selector account-slot \
   --plus-selector account-slot \
-  --plus-selector account-slot
+  --plus-selector account-slot \
+  --prolite-selector account-slot
 ```
 
 By default the tool will:
@@ -62,5 +65,6 @@ By default the tool will:
 
 - Performance A/B compares baseline requests against requests sent with `service_tier = priority`.
 - Team-to-Plus ratio is computed from direct quota-window drops under matched workloads.
+- `Weekly-to-5h Cap` reports `5h_drop / weekly_drop` per Team, Plus, and optional Prolite account, plus a conservative `recommended_dashboard_multiplier`; pass that value to `codex-quota-monitor --weekly-to-five-hour-multiplier` if you want total 5h capacity capped by weekly remaining capacity.
 - If a quota window resets during a batch, that batch is marked invalid for ratio math instead of being silently averaged in.
 - If the Team account reaches `0%` remaining on either `5h` or `weekly`, quota benchmarking stops immediately and the report marks the ratio section incomplete.

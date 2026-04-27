@@ -47,6 +47,18 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.host, "0.0.0.0")
         self.assertEqual(args.port, 9000)
 
+    def test_parse_args_accepts_weekly_to_five_hour_multiplier(self):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "CODEX_QUOTA_MONITOR_WEEKLY_TO_FIVE_HOUR_MULTIPLIER": "3.5",
+            },
+            clear=True,
+        ):
+            args = MODULE.parse_args([])
+
+        self.assertEqual(args.weekly_to_five_hour_multiplier, 3.5)
+
 
 class QuotaParsingTests(unittest.TestCase):
     def test_parse_quota_usage_payload_maps_direct_windows(self):
@@ -139,7 +151,7 @@ class QuotaSamplerTests(unittest.TestCase):
 
 
 class DashboardSnapshotTests(unittest.TestCase):
-    def build_minimal_snapshot(self, *, auth_files, usage_details, quota_samples=None):
+    def build_minimal_snapshot(self, *, auth_files, usage_details, quota_samples=None, weekly_to_five_hour_multiplier=None):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
         total_tokens = sum(int((detail.get("tokens") or {}).get("total_tokens") or 0) for detail in usage_details)
         failure_count = sum(1 for detail in usage_details if detail.get("failed"))
@@ -182,6 +194,7 @@ class DashboardSnapshotTests(unittest.TestCase):
             request_log_payload={"request-log": True},
             logs_payload={"lines": []},
             sampled_at=sampled_at,
+            weekly_to_five_hour_multiplier=weekly_to_five_hour_multiplier,
         )
 
     def test_build_dashboard_snapshot_hides_replaced_runtime_slot_with_same_source(self):
@@ -688,6 +701,73 @@ class DashboardSnapshotTests(unittest.TestCase):
         prolite_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["badge"] == "Pro Lite")
         self.assertEqual(prolite_account["windows"][0]["valueText"], "50%")
         self.assertNotIn("excluded", prolite_account["windows"][0]["note"])
+
+    def test_build_dashboard_snapshot_removes_five_hour_capacity_when_weekly_is_exhausted(self):
+        snapshot = self.build_minimal_snapshot(
+            auth_files=[
+                {
+                    "auth_index": "acct-plus",
+                    "label": "account-slot",
+                    "status": "active",
+                    "id_token": {"plan_type": "plus"},
+                }
+            ],
+            usage_details=[],
+            quota_samples={
+                "acct-plus": {
+                    "sampledAt": dt.datetime(2026, 4, 24, 15, 29, 45, tzinfo=dt.timezone.utc).astimezone(),
+                    "planType": "plus",
+                    "windows": {
+                        "5h": {"percent": 100},
+                        "week": {"percent": 0},
+                    },
+                    "lastError": None,
+                    "lastErrorAt": None,
+                }
+            },
+        )
+
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.00 Plus")
+        five_hour = snapshot["tabs"]["pool"]["capacityWindows"][0]
+        self.assertEqual(five_hour["knownUnitsText"], "0.00 Plus")
+        self.assertEqual(five_hour["weeklyCappedCount"], 1)
+        self.assertIn("Weekly-capped 1", five_hour["summary"])
+        account = snapshot["tabs"]["pool"]["accounts"][0]
+        self.assertEqual(account["windows"][0]["valueText"], "100%")
+        self.assertEqual(account["windows"][1]["valueText"], "0%")
+
+    def test_build_dashboard_snapshot_caps_five_hour_capacity_from_weekly_multiplier(self):
+        snapshot = self.build_minimal_snapshot(
+            auth_files=[
+                {
+                    "auth_index": "acct-plus",
+                    "label": "account-slot",
+                    "status": "active",
+                    "id_token": {"plan_type": "plus"},
+                }
+            ],
+            usage_details=[],
+            quota_samples={
+                "acct-plus": {
+                    "sampledAt": dt.datetime(2026, 4, 24, 15, 29, 45, tzinfo=dt.timezone.utc).astimezone(),
+                    "planType": "plus",
+                    "windows": {
+                        "5h": {"percent": 100},
+                        "week": {"percent": 10},
+                    },
+                    "lastError": None,
+                    "lastErrorAt": None,
+                }
+            },
+            weekly_to_five_hour_multiplier=3.5,
+        )
+
+        five_hour = snapshot["tabs"]["pool"]["capacityWindows"][0]
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.35 Plus")
+        self.assertEqual(five_hour["knownUnitsText"], "0.35 Plus")
+        self.assertEqual(five_hour["knownBarPercent"], 35)
+        self.assertIn("Weekly-capped 1", five_hour["summary"])
+        self.assertIn("weekly remaining times 3.50", snapshot["tabs"]["pool"]["footnote"])
 
     def test_build_dashboard_snapshot_exposes_inherit_and_unknown_fast_states(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
