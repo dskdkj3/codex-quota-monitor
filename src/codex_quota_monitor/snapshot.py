@@ -1194,9 +1194,14 @@ def build_capacity_windows(contexts, weekly_to_five_hour_multiplier=_DEFAULT_WEE
 def build_pool_accounts(contexts):
     return [
         {
+            "key": context["key"],
             "tone": context["tone"],
             "title": context["title"],
             "badge": context["badge"],
+            "planKind": context["planKind"],
+            "capacityWeight": capacity_plan_weight(context["planKind"]),
+            "issueKind": context["issueKind"],
+            "quotaCooldown": context.get("quotaCooldown", False),
             "statusLabel": context["statusLabel"],
             "summary": context["summary"],
             "meta": context["meta"],
@@ -1739,6 +1744,8 @@ def build_dashboard_snapshot(
         "sampledAtText": display_timestamp(sampled_at),
         "statusText": status_text,
         "error": "; ".join(endpoint_errors) if endpoint_errors else None,
+        "_totalRequests": total_requests,
+        "_totalTokens": total_tokens,
         "summary": {
             "gatewayPill": "Gateway OK" if gateway_ok else "Gateway down",
             "fastPill": fast_mode["pill"],
@@ -1804,6 +1811,8 @@ def build_unavailable_snapshot(error_text):
         "sampledAtText": "Waiting for first successful sample",
         "statusText": message,
         "error": message,
+        "_totalRequests": 0,
+        "_totalTokens": 0,
         "summary": {
             "gatewayPill": "Gateway unknown",
             "fastPill": "Fast Unknown",

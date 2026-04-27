@@ -58,7 +58,9 @@
         <nav class="tab-bar" aria-label="Dashboard tabs">
           <a class="tab" id="tab-button-pool" href="#pool" data-tab="pool">Pool</a>
           <a class="tab" id="tab-button-resets" href="#resets" data-tab="resets">Resets</a>
+          <a class="tab" id="tab-button-trends" href="#trends" data-tab="trends">Trends</a>
           <a class="tab" id="tab-button-traffic" href="#traffic" data-tab="traffic">Usage</a>
+          <a class="tab" id="tab-button-audit" href="#audit" data-tab="audit">Audit</a>
           <a class="tab" id="tab-button-alerts" href="#alerts" data-tab="alerts">Alerts</a>
         </nav>
 
@@ -68,6 +70,7 @@
             <h2 class="tab-title" id="tab-title-pool">Loading</h2>
             <p class="tab-summary" id="tab-summary-pool"></p>
           </div>
+          <div class="recommendation-grid" id="pool-recommendations"></div>
           <div class="mini-metrics" id="pool-stats"></div>
           <div class="capacity-grid" id="pool-capacity"></div>
           <div class="account-grid" id="pool-accounts"></div>
@@ -84,6 +87,20 @@
           <p class="tab-footnote" id="tab-footnote-resets"></p>
         </section>
 
+        <section class="panel tab-panel" id="tab-panel-trends">
+          <div class="panel-head">
+            <p class="eyebrow">Trends</p>
+            <h2 class="tab-title" id="tab-title-trends">Loading</h2>
+            <p class="tab-summary" id="tab-summary-trends"></p>
+          </div>
+          <div class="mini-metrics" id="trends-metrics"></div>
+          <div class="trend-grid" id="trends-windows"></div>
+          <h3 class="section-title" id="benchmark-title">Benchmark</h3>
+          <p class="tab-summary" id="benchmark-summary"></p>
+          <div class="mini-metrics" id="benchmark-metrics"></div>
+          <p class="tab-footnote" id="tab-footnote-trends"></p>
+        </section>
+
         <section class="panel tab-panel" id="tab-panel-traffic">
           <div class="panel-head">
             <p class="eyebrow">Usage</p>
@@ -97,6 +114,16 @@
           <h3 class="section-title" id="usage-models-title">Model Breakdown</h3>
           <div class="list-block" id="usage-models"></div>
           <p class="tab-footnote" id="tab-footnote-traffic"></p>
+        </section>
+
+        <section class="panel tab-panel" id="tab-panel-audit">
+          <div class="panel-head">
+            <p class="eyebrow">Audit</p>
+            <h2 class="tab-title" id="tab-title-audit">Loading</h2>
+            <p class="tab-summary" id="tab-summary-audit"></p>
+          </div>
+          <div class="list-block" id="audit-items"></div>
+          <p class="tab-footnote" id="tab-footnote-audit"></p>
         </section>
 
         <section class="panel tab-panel" id="tab-panel-alerts">

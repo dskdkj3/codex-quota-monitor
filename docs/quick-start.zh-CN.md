@@ -36,6 +36,16 @@ nix run .#codex-quota-monitor -- \
 
 默认会用 `weekly 剩余 * 4.0` 约束总 `5h` 容量。用 `--weekly-to-five-hour-multiplier <数字>` 可以覆盖倍率，用 `--weekly-to-five-hour-multiplier off` / `none` 可以关闭这个 cap。
 
+直接 `nix run` 默认不写 SQLite 历史。需要 Trends、ETA 和 Audit 时，给它一个可写 state DB：
+
+```bash
+nix run .#codex-quota-monitor -- \
+  --state-db ./result/codex-quota-monitor.sqlite3 \
+  --management-base-url http://127.0.0.1:8318 \
+  --gateway-health-url http://127.0.0.1:8317/healthz \
+  --auth-dir /path/to/auth-files
+```
+
 ## 用 Python 运行
 
 ```bash
@@ -53,6 +63,7 @@ codex-quota-monitor \
 ```bash
 curl -fsS http://127.0.0.1:4515/healthz
 curl -fsS http://127.0.0.1:4515/api/status | jq '.summary'
+curl -fsS http://127.0.0.1:4515/api/alerts | jq '.'
 ```
 
 进程起来之后，在浏览器打开 `http://127.0.0.1:4515/`。

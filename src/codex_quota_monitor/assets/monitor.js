@@ -1,12 +1,14 @@
 var BOOTSTRAP = window.CODEX_QUOTA_MONITOR_BOOTSTRAP || {};
 var INITIAL_SNAPSHOT = BOOTSTRAP.initialSnapshot || {};
 var REFRESH_MS = BOOTSTRAP.refreshMs || 15000;
-var TAB_NAMES = ["pool", "resets", "traffic", "alerts"];
+var TAB_NAMES = ["pool", "resets", "trends", "traffic", "audit", "alerts"];
 var ACTIVE_TAB_NAME = null;
 var LAST_TAB_SIGNATURES = {
   pool: null,
   resets: null,
+  trends: null,
   traffic: null,
+  audit: null,
   alerts: null
 };
 var SUMMARY_CARD_VARIANTS = {
@@ -313,6 +315,48 @@ function renderPoolAccounts(targetId, accounts) {
   setHtml(targetId, htmlParts.join(""));
 }
 
+function renderRecommendationGroups(targetId, recommendations) {
+  var groups = (recommendations || {}).groups || [];
+  var htmlParts = [];
+
+  if (!groups.length) {
+    setHtml(targetId, "");
+    return;
+  }
+
+  for (var groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+    var group = groups[groupIndex] || {};
+    var items = group.items && group.items.length ? group.items : [];
+    var itemParts = [];
+    if (!items.length) {
+      itemParts.push('<p class="empty">No accounts in this group.</p>');
+    }
+    for (var itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+      var item = items[itemIndex] || {};
+      itemParts.push(
+        '<div class="recommendation-item recommendation-item-' + safeTone(item.tone, "unknown") + '">' +
+          '<div class="recommendation-head">' +
+            '<span class="recommendation-title">' + escapeHtml(text(item.title, "Unknown account")) + "</span>" +
+            '<span class="recommendation-badge">' + escapeHtml(text(item.badge, "")) + "</span>" +
+          "</div>" +
+          '<div class="recommendation-summary">' + escapeHtml(text(item.summary, "")) + "</div>" +
+        "</div>"
+      );
+    }
+    htmlParts.push(
+      '<article class="recommendation-group recommendation-group-' + escapeHtml(text(group.id, "unknown")) + '">' +
+        '<div class="recommendation-group-head">' +
+          '<h3 class="recommendation-group-title">' + escapeHtml(text(group.title, "Group")) + "</h3>" +
+          '<span class="recommendation-group-summary">' + escapeHtml(text(group.summary, "")) + "</span>" +
+        "</div>" +
+        '<div class="recommendation-items">' + itemParts.join("") + "</div>" +
+      "</article>"
+    );
+  }
+
+  setHtml(targetId, htmlParts.join(""));
+}
+
 function renderUsageCharts(targetId, charts) {
   var safeCharts = charts && charts.length ? charts : [];
   var htmlParts = [];
@@ -401,9 +445,63 @@ function renderPoolTab(tabData) {
   setText("tab-title-pool", safeTab.title, "Pool Capacity");
   setText("tab-summary-pool", safeTab.summary, "");
   setText("tab-footnote-pool", safeTab.footnote, "");
+  renderRecommendationGroups("pool-recommendations", (window.LAST_SNAPSHOT || {}).recommendations || {});
   renderMetricCards("pool-stats", safeTab.stats || []);
   renderCapacityCards("pool-capacity", safeTab.capacityWindows || []);
   renderPoolAccounts("pool-accounts", safeTab.accounts || []);
+}
+
+function renderTrendWindows(targetId, windows) {
+  var safeWindows = windows && windows.length ? windows : [];
+  var htmlParts = [];
+
+  if (!safeWindows.length) {
+    setHtml(targetId, '<article class="trend-card"><p class="empty">No trend history is available yet.</p></article>');
+    return;
+  }
+
+  for (var index = 0; index < safeWindows.length; index += 1) {
+    var windowData = safeWindows[index] || {};
+    var points = windowData.points && windowData.points.length ? windowData.points : [];
+    var pointParts = [];
+    for (var pointIndex = 0; pointIndex < points.length; pointIndex += 1) {
+      var point = points[pointIndex] || {};
+      pointParts.push(
+        '<div class="trend-point">' +
+          '<span>' + escapeHtml(text(point.label, "")) + "</span>" +
+          '<strong>' + escapeHtml(text(point.valueText, "Unknown")) + "</strong>" +
+        "</div>"
+      );
+    }
+    htmlParts.push(
+      '<article class="trend-card">' +
+        '<div class="trend-head">' +
+          '<h3 class="trend-title">' + escapeHtml(text(windowData.label, "Window")) + "</h3>" +
+          '<span class="trend-current">' + escapeHtml(text(windowData.currentUnitsText, "Unknown")) + "</span>" +
+        "</div>" +
+        '<div class="trend-metrics">' +
+          '<span>Burn ' + escapeHtml(text(windowData.burnText, "Unknown")) + "</span>" +
+          '<span>ETA ' + escapeHtml(text(windowData.etaText, "Unknown")) + "</span>" +
+        "</div>" +
+        '<p class="trend-summary">' + escapeHtml(text(windowData.summary, "")) + "</p>" +
+        '<div class="trend-points">' + pointParts.join("") + "</div>" +
+      "</article>"
+    );
+  }
+
+  setHtml(targetId, htmlParts.join(""));
+}
+
+function renderTrendsTab(tabData) {
+  var safeTab = tabData || {};
+  var benchmark = safeTab.benchmark || {};
+  setText("tab-title-trends", safeTab.title, "Trends & ETA");
+  setText("tab-summary-trends", safeTab.summary, "");
+  setText("tab-footnote-trends", safeTab.footnote, "");
+  setText("benchmark-summary", benchmark.summary, "");
+  renderMetricCards("trends-metrics", safeTab.metrics || []);
+  renderTrendWindows("trends-windows", safeTab.windows || []);
+  renderMetricCards("benchmark-metrics", benchmark.metrics || []);
 }
 
 function renderTrafficTab(tabData) {
@@ -488,6 +586,14 @@ function renderAlertsTab(tabData) {
   renderListItems("alerts-items", safeTab.items || [], "No active alerts.");
 }
 
+function renderAuditTab(tabData) {
+  var safeTab = tabData || {};
+  setText("tab-title-audit", safeTab.title, "Audit Trail");
+  setText("tab-summary-audit", safeTab.summary, "");
+  setText("tab-footnote-audit", safeTab.footnote, "");
+  renderListItems("audit-items", safeTab.items || [], "No audit events yet.");
+}
+
 function renderTabIfChanged(name, tabData, renderFn) {
   var signature = tabSignature(tabData);
   if (LAST_TAB_SIGNATURES[name] === signature) {
@@ -499,6 +605,7 @@ function renderTabIfChanged(name, tabData, renderFn) {
 
 function renderSnapshot(snapshot) {
   var safeSnapshot = snapshot || {};
+  window.LAST_SNAPSHOT = safeSnapshot;
   var summary = safeSnapshot.summary || {};
   var tabs = safeSnapshot.tabs || {};
 
@@ -528,7 +635,9 @@ function renderSnapshot(snapshot) {
 
   renderTabIfChanged("pool", tabs.pool, renderPoolTab);
   renderTabIfChanged("resets", tabs.resets, renderResetsTab);
+  renderTabIfChanged("trends", tabs.trends, renderTrendsTab);
   renderTabIfChanged("traffic", tabs.traffic, renderTrafficTab);
+  renderTabIfChanged("audit", tabs.audit, renderAuditTab);
   renderTabIfChanged("alerts", tabs.alerts, renderAlertsTab);
 }
 

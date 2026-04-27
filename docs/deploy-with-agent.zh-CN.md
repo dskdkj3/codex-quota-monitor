@@ -11,6 +11,8 @@
 - `CLIProxyAPI` management gateway URL
 - gateway health URL
 - direct quota sampling 用的 auth 目录，可选
+- SQLite history 是使用默认 state DB、关闭，还是指定自定义路径
+- 可选 benchmark `summary.json` 路径和机器可读阈值告警
 - 监控页是只允许本机访问，还是需要局域网访问
 - 是否需要自动开放防火墙
 
@@ -29,6 +31,8 @@
 - listenAddress = "127.0.0.1"
 - port = 4515
 - openFirewall = false
+- 除非我明确说明，否则保留默认 SQLite history DB
+- 除非我给出精确值，否则不要配置 threshold alerts 或 benchmarkSummary
 
 验证：
 - 跑 Nix eval/build 检查
@@ -53,6 +57,7 @@
 systemctl status codex-quota-monitor.service --no-pager
 curl -fsS http://127.0.0.1:4515/healthz
 curl -fsS http://127.0.0.1:4515/api/status | jq '.summary'
+curl -fsS http://127.0.0.1:4515/api/alerts | jq '.'
 ```
 
 如果启用了局域网访问，再用手机或 e-ink 打开 `http://<host-lan-ip>:4515/`，确认页面能正常渲染，而且不会出现整页闪白式 reload。

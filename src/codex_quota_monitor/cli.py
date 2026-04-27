@@ -96,6 +96,46 @@ def parse_args(argv=None):
         ),
     )
     parser.add_argument(
+        "--state-db",
+        default=read_env("CODEX_QUOTA_MONITOR_STATE_DB", None, "off"),
+        help="SQLite history database path. Use 'off' or 'none' to disable history.",
+    )
+    parser.add_argument(
+        "--history-write-seconds",
+        type=int,
+        default=int(read_env("CODEX_QUOTA_MONITOR_HISTORY_WRITE_SECONDS", None, "60")),
+        help="Minimum seconds between persisted history snapshots.",
+    )
+    parser.add_argument(
+        "--history-retention-days",
+        type=int,
+        default=int(read_env("CODEX_QUOTA_MONITOR_HISTORY_RETENTION_DAYS", None, "30")),
+        help="Days of SQLite history and audit events to retain.",
+    )
+    parser.add_argument(
+        "--benchmark-summary",
+        default=read_env("CODEX_QUOTA_MONITOR_BENCHMARK_SUMMARY", None, ""),
+        help="Optional codex-quota-benchmark summary.json path to display in Trends.",
+    )
+    parser.add_argument(
+        "--alert-five-hour-min-plus",
+        type=optional_positive_float,
+        default=optional_positive_float(read_env("CODEX_QUOTA_MONITOR_ALERT_FIVE_HOUR_MIN_PLUS", None, "")),
+        help="Optional machine-readable alert threshold for total 5h capacity in Plus units.",
+    )
+    parser.add_argument(
+        "--alert-weekly-min-plus",
+        type=optional_positive_float,
+        default=optional_positive_float(read_env("CODEX_QUOTA_MONITOR_ALERT_WEEKLY_MIN_PLUS", None, "")),
+        help="Optional machine-readable alert threshold for total weekly capacity in Plus units.",
+    )
+    parser.add_argument(
+        "--alert-best-accounts-min",
+        type=int,
+        default=int(read_env("CODEX_QUOTA_MONITOR_ALERT_BEST_ACCOUNTS_MIN", None, "0")),
+        help="Optional machine-readable alert threshold for recommended best accounts.",
+    )
+    parser.add_argument(
         "--log-level",
         default=read_env("CODEX_QUOTA_MONITOR_LOG_LEVEL", "CODEX_MONITOR_LOG_LEVEL", "INFO"),
     )
@@ -117,6 +157,15 @@ def main(argv=None):
         logs_refresh_seconds=args.logs_refresh_seconds,
         timeout_seconds=args.timeout_seconds,
         weekly_to_five_hour_multiplier=args.weekly_to_five_hour_multiplier,
+        state_db=args.state_db,
+        history_write_seconds=args.history_write_seconds,
+        history_retention_days=args.history_retention_days,
+        benchmark_summary_path=args.benchmark_summary,
+        alert_thresholds={
+            "five_hour_min_plus": args.alert_five_hour_min_plus,
+            "weekly_min_plus": args.alert_weekly_min_plus,
+            "best_accounts_min": args.alert_best_accounts_min,
+        },
     )
 
     MonitorRequestHandler.monitor = monitor

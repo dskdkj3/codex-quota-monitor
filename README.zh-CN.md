@@ -10,7 +10,9 @@
 
 - `Pool`：`5h` / `weekly` 已知总容量（以 Plus 为单位展示），其中 Team 按 `1:1` 计入、Prolite 按 `10:1` 计入，其它非 Plus 账号仍可见但不影响总量；账号 weekly 已耗尽时，对总 `5h` 容量贡献为 `0`
 - `Resets`：按从近到远排序展示 `5h` / `weekly` 的 reset 时间，并用紧凑的北京时间显示目标时刻
+- `Trends`：基于 SQLite 历史计算 burn rate、预计耗尽时间，并可导入 benchmark 摘要
 - `Usage`：来自 `CLIProxyAPI` usage statistics 的请求/token 总量、小时/日期 bucket、model breakdown 和账号分摊
+- `Audit`：从历史快照 diff 出最近账号池、套餐、状态、quota window 和 benchmark 摘要变化
 - `Alerts`：只保留硬 auth 故障、没有明确 reset 的硬 quota exhausted、以及 monitor / 数据源降级；有 reset 的 usage-limit cooldown 只留在 `Pool` / `Resets` 展示，不把账号卡片标红
 - `Status`：gateway 连通性，以及当前 CPA 快照/刷新状态
 - `Fast`：当前 CPA fast override 状态（`On`、`Off`、`Inherit` 或 `Unknown`），显示在 Pool 指标里
@@ -36,6 +38,7 @@ nix run .#codex-quota-monitor -- \
 
 默认监听在 `127.0.0.1:4515`。如果你要让手机或 e-ink 通过局域网访问，需要显式传 `--host 0.0.0.0`，并且有意识地开放端口。
 默认会用 `weekly 剩余 * 4.0` 约束总 `5h` 容量，避免 weekly 剩余额很低的账号把 `5h` 池估得过高。传 `--weekly-to-five-hour-multiplier <数字>` 可以覆盖这个倍率；传 `--weekly-to-five-hour-multiplier off` / `none` 可以关闭这个 cap。Benchmark 报告会给一个保守推荐值。
+直接 `nix run` 默认不写 SQLite 历史；需要 Trends / ETA / Audit 时传 `--state-db /path/to/history.sqlite3`。NixOS module 默认会把历史写到 `/var/lib/codex-quota-monitor/history.sqlite3`。
 
 ### 用 Python 运行
 
@@ -70,6 +73,8 @@ codex-quota-benchmark \
 - 一个可访问的 `CLIProxyAPI` management gateway，通常是 `http://127.0.0.1:8318`
 - 一个可访问的 gateway health endpoint，通常是 `http://127.0.0.1:8317/healthz`
 - 可选的 Codex auth 文件目录；如果提供，监控页可以做 `5h` / `weekly` 的 direct quota sampling，而不只是显示 pool 状态
+- 可选 SQLite state database；启用后会提供 Trends、ETA 和 Audit 历史
+- 可选 `codex-quota-benchmark` 的 `summary.json`；配置后会在 Trends 里显示 benchmark 校准信息
 
 ## 给 Agent 的入口
 

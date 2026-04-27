@@ -79,6 +79,35 @@ class CliTests(unittest.TestCase):
 
         self.assertIsNone(args.weekly_to_five_hour_multiplier)
 
+    def test_parse_args_accepts_history_and_alert_options(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            args = MODULE.parse_args(
+                [
+                    "--state-db",
+                    "/tmp/history.sqlite3",
+                    "--history-write-seconds",
+                    "5",
+                    "--history-retention-days",
+                    "7",
+                    "--benchmark-summary",
+                    "/tmp/summary.json",
+                    "--alert-five-hour-min-plus",
+                    "1.5",
+                    "--alert-weekly-min-plus",
+                    "2.5",
+                    "--alert-best-accounts-min",
+                    "2",
+                ]
+            )
+
+        self.assertEqual(args.state_db, "/tmp/history.sqlite3")
+        self.assertEqual(args.history_write_seconds, 5)
+        self.assertEqual(args.history_retention_days, 7)
+        self.assertEqual(args.benchmark_summary, "/tmp/summary.json")
+        self.assertEqual(args.alert_five_hour_min_plus, 1.5)
+        self.assertEqual(args.alert_weekly_min_plus, 2.5)
+        self.assertEqual(args.alert_best_accounts_min, 2)
+
 
 class RuntimeTests(unittest.TestCase):
     def test_cpa_monitor_defaults_weekly_to_five_hour_multiplier(self):
@@ -92,6 +121,162 @@ class RuntimeTests(unittest.TestCase):
         )
 
         self.assertEqual(monitor.weekly_to_five_hour_multiplier, 4.0)
+
+
+def build_history_dashboard(*, sampled_at, five_hour_percent, weekly_percent=80, status="active"):
+    return MODULE.build_dashboard_snapshot(
+        health_payload={"status": "ok"},
+        auth_files_payload={
+            "files": [
+                {
+                    "auth_index": "acct-plus",
+                    "label": "account-slot",
+                    "status": status,
+                    "updated_at": sampled_at.isoformat(timespec="seconds"),
+                    "id_token": {"plan_type": "plus"},
+                }
+            ]
+        },
+        usage_payload={
+            "usage": {
+                "total_requests": 4,
+                "success_count": 4,
+                "failure_count": 0,
+                "total_tokens": 1000,
+                "apis": {
+                    "sk-dummy": {
+                        "models": {
+                            "gpt-5.4": {
+                                "details": [
+                                    {
+                                        "timestamp": sampled_at.isoformat(timespec="seconds"),
+                                        "source": "account-slot",
+                                        "auth_index": "acct-plus",
+                                        "tokens": {"total_tokens": 1000},
+                                        "failed": False,
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+            }
+        },
+        quota_payload={
+            "status": "live",
+            "eligibleCount": 1,
+            "sampledCount": 1,
+            "freshCount": 1,
+            "staleCount": 0,
+            "cycleSeconds": 15,
+            "completedCycle": True,
+            "degraded": False,
+            "attemptedKey": "acct-plus",
+            "attemptError": None,
+            "samples": {
+                "acct-plus": {
+                    "sampledAt": sampled_at,
+                    "planType": "plus",
+                    "windows": {
+                        "5h": {
+                            "percent": five_hour_percent,
+                            "resetAt": sampled_at + dt.timedelta(hours=2),
+                        },
+                        "week": {
+                            "percent": weekly_percent,
+                            "resetAt": sampled_at + dt.timedelta(days=2),
+                        },
+                    },
+                    "lastError": None,
+                    "lastErrorAt": None,
+                }
+            },
+        },
+        routing_payload={"routing": {"strategy": "round-robin"}, "codex": {"service-tier-policy": "force-priority"}},
+        usage_stats_payload={"usage-statistics-enabled": True},
+        request_log_payload={"request-log": True},
+        logs_payload={"lines": []},
+        sampled_at=sampled_at,
+    )
+
+
+class HistoryFeatureTests(unittest.TestCase):
+    def test_sqlite_history_builds_recommendations_trends_and_audit(self):
+        start = dt.datetime(2026, 4, 20, 12, 0, tzinfo=dt.timezone.utc).astimezone()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = MODULE.HistoryStore(pathlib.Path(temp_dir) / "history.sqlite3", write_seconds=1, retention_days=30)
+            first = MODULE.enhance_snapshot_with_history(
+                build_history_dashboard(sampled_at=start, five_hour_percent=80),
+                history_store=store,
+                weekly_to_five_hour_multiplier=4.0,
+            )
+            second = MODULE.enhance_snapshot_with_history(
+                build_history_dashboard(sampled_at=start + dt.timedelta(hours=1), five_hour_percent=50),
+                history_store=store,
+                weekly_to_five_hour_multiplier=4.0,
+            )
+            third = MODULE.enhance_snapshot_with_history(
+                build_history_dashboard(sampled_at=start + dt.timedelta(hours=2), five_hour_percent=0),
+                history_store=store,
+                weekly_to_five_hour_multiplier=4.0,
+            )
+
+        self.assertEqual(first["recommendations"]["bestCount"], 1)
+        self.assertEqual(second["tabs"]["trends"]["windows"][0]["burnText"], "0.30 Plus/h")
+        self.assertEqual(second["tabs"]["trends"]["windows"][0]["etaText"], "1h 40min")
+        self.assertEqual(third["recommendations"]["avoidCount"], 1)
+        audit_summaries = [item["summary"] for item in third["tabs"]["audit"]["items"]]
+        self.assertTrue(any("5h exhausted" in summary for summary in audit_summaries))
+
+    def test_threshold_alerts_and_api_alert_payload_are_machine_readable(self):
+        sampled_at = dt.datetime(2026, 4, 20, 12, 0, tzinfo=dt.timezone.utc).astimezone()
+        snapshot = MODULE.enhance_snapshot_with_history(
+            build_history_dashboard(sampled_at=sampled_at, five_hour_percent=40),
+            alert_thresholds={
+                "five_hour_min_plus": 0.5,
+                "weekly_min_plus": 0.5,
+                "best_accounts_min": 2,
+            },
+        )
+
+        api_alerts = snapshot["apiAlerts"]
+        self.assertFalse(api_alerts["ok"])
+        self.assertEqual(api_alerts["recommendations"]["bestCount"], 1)
+        self.assertIn("5h capacity below threshold", [item["title"] for item in api_alerts["items"]])
+        self.assertIn("Recommended account pool below threshold", [item["title"] for item in api_alerts["items"]])
+
+    def test_benchmark_summary_is_loaded_into_trends(self):
+        sampled_at = dt.datetime(2026, 4, 20, 12, 0, tzinfo=dt.timezone.utc).astimezone()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            summary_path = pathlib.Path(temp_dir) / "summary.json"
+            summary_path.write_text(
+                json.dumps(
+                    {
+                        "generatedAt": "2026-04-20T12:00:00+00:00",
+                        "performance": {
+                            "comparison": {
+                                "speedup_p50": 1.25,
+                                "token_overhead_ratio": 1.05,
+                            }
+                        },
+                        "quota": {
+                            "weeklyToFiveHour": {
+                                "recommended_dashboard_multiplier": 3.25,
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            snapshot = MODULE.enhance_snapshot_with_history(
+                build_history_dashboard(sampled_at=sampled_at, five_hour_percent=80),
+                benchmark_summary_path=str(summary_path),
+            )
+
+        benchmark = snapshot["tabs"]["trends"]["benchmark"]
+        self.assertTrue(benchmark["available"])
+        self.assertEqual(benchmark["recommendedDashboardMultiplier"], 3.25)
+        self.assertIn("3.25", [metric["value"] for metric in benchmark["metrics"]])
 
 
 class QuotaParsingTests(unittest.TestCase):
@@ -1117,10 +1302,15 @@ class PageRenderingTests(unittest.TestCase):
         self.assertIn('id="five-hour-pill"', page)
         self.assertIn('id="pool-capacity"', page)
         self.assertIn('id="pool-accounts"', page)
+        self.assertIn('id="pool-recommendations"', page)
+        self.assertIn('id="trends-windows"', page)
+        self.assertIn('id="audit-items"', page)
         self.assertIn('id="usage-charts"', page)
         self.assertIn('id="usage-models"', page)
         self.assertIn(">Pool<", page)
+        self.assertIn(">Trends<", page)
         self.assertIn(">Usage<", page)
+        self.assertIn(">Audit<", page)
         self.assertIn(">Alerts<", page)
 
     def test_monitor_js_no_longer_renders_failed_chip(self):
@@ -1167,7 +1357,9 @@ class DummyMonitor:
 
 class HandlerTests(unittest.TestCase):
     def setUp(self):
-        self.snapshot = MODULE.build_unavailable_snapshot("auth-files: connection refused")
+        self.snapshot = MODULE.enhance_snapshot_with_history(
+            MODULE.build_unavailable_snapshot("auth-files: connection refused")
+        )
         MODULE.MonitorRequestHandler.monitor = DummyMonitor(self.snapshot)
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), MODULE.MonitorRequestHandler)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -1192,7 +1384,18 @@ class HandlerTests(unittest.TestCase):
             self.assertEqual(payload["source"], "unavailable")
             self.assertEqual(payload["fastMode"]["state"], "unknown")
             self.assertEqual(payload["summary"]["poolPill"], "Pool unavailable")
+            self.assertEqual(payload["recommendations"]["bestCount"], 0)
+            self.assertIn("trends", payload["tabs"])
+            self.assertIn("audit", payload["tabs"])
             self.assertEqual(payload["tabs"]["alerts"]["items"][0]["badge"], "Monitor")
+
+        with urllib.request.urlopen(self.base_url + "/api/alerts", timeout=5) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers.get_content_type(), "application/json")
+            payload = json.loads(response.read().decode("utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["alertCount"], 1)
+            self.assertEqual(payload["items"][0]["badge"], "Monitor")
 
         with urllib.request.urlopen(self.base_url + "/", timeout=5) as response:
             self.assertEqual(response.status, 200)
@@ -1215,6 +1418,8 @@ class HandlerTests(unittest.TestCase):
             self.assertEqual(response.headers.get_content_type(), "application/javascript")
             script = response.read().decode("utf-8")
             self.assertIn("renderPoolTab", script)
+            self.assertIn("renderTrendsTab", script)
+            self.assertIn("renderAuditTab", script)
             self.assertIn("renderCapacityCards", script)
             self.assertIn("renderAccountSignals", script)
             self.assertIn("shouldShowWindowNote", script)

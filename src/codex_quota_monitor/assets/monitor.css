@@ -241,7 +241,7 @@ body {
 
 .tab-bar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   gap: 8px;
 }
 
@@ -356,7 +356,9 @@ body {
 .capacity-card,
 .list-item,
 .account,
-.reset-list {
+.reset-list,
+.recommendation-group,
+.trend-card {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -436,6 +438,132 @@ body {
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
+}
+
+.recommendation-grid,
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+}
+
+.recommendation-group,
+.trend-card {
+  padding: 10px;
+  background: var(--surface-soft);
+}
+
+.recommendation-group-head,
+.trend-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.recommendation-group-title,
+.trend-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.15;
+}
+
+.recommendation-group-summary,
+.trend-current {
+  color: var(--muted);
+  font-family: "Maple Mono NF CN", "Noto Sans Mono CJK SC", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.recommendation-items,
+.trend-points {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.recommendation-item {
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--unknown);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.recommendation-item-good {
+  border-left-color: var(--good);
+}
+
+.recommendation-item-warn {
+  border-left-color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.recommendation-item-bad {
+  border-left-color: var(--bad);
+  background: var(--bad-bg);
+}
+
+.recommendation-head,
+.trend-metrics,
+.trend-point {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.recommendation-title,
+.recommendation-badge,
+.trend-current,
+.trend-point strong {
+  font-family: "Maple Mono NF CN", "Noto Sans Mono CJK SC", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.recommendation-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recommendation-badge {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.recommendation-summary,
+.trend-summary,
+.trend-metrics,
+.trend-point {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.recommendation-summary,
+.trend-summary {
+  margin-top: 5px;
+}
+
+.trend-metrics {
+  margin-top: 8px;
+  font-weight: 800;
+}
+
+.trend-point {
+  padding: 5px 0;
+  border-top: 1px solid rgba(92, 102, 115, 0.16);
 }
 
 .account {

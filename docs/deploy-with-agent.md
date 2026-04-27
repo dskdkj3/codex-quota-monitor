@@ -11,6 +11,8 @@ Use this doc when you want Codex, Claude, or another coding agent to wire `codex
 - The `CLIProxyAPI` management gateway URL
 - The gateway health URL
 - The optional auth directory for direct quota sampling
+- Whether SQLite history should use the default state DB, be disabled, or use a custom path
+- Optional benchmark `summary.json` path and machine-readable alert thresholds
 - Whether the dashboard should stay loopback-only or be reachable on the LAN
 - Whether the firewall should be opened
 
@@ -29,6 +31,8 @@ Requirements:
 - listenAddress = "127.0.0.1"
 - port = 4515
 - openFirewall = false
+- keep the default SQLite history DB unless I explicitly say otherwise
+- do not configure threshold alerts or benchmarkSummary unless I provide exact values
 
 Validation:
 - run Nix eval/build checks
@@ -53,6 +57,7 @@ Ask the agent to run or report these:
 systemctl status codex-quota-monitor.service --no-pager
 curl -fsS http://127.0.0.1:4515/healthz
 curl -fsS http://127.0.0.1:4515/api/status | jq '.summary'
+curl -fsS http://127.0.0.1:4515/api/alerts | jq '.'
 ```
 
 If LAN access is enabled, open `http://<host-lan-ip>:4515/` from a phone or e-ink and confirm the page renders without full-page reload flicker.

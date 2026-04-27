@@ -14,7 +14,9 @@ let
     ;
   cfg = config.services.codexQuotaMonitor;
   defaultAccount = "codex-quota-monitor";
+  defaultStateDb = "/var/lib/codex-quota-monitor/history.sqlite3";
   defaultWeeklyToFiveHourMultiplier = 4;
+  stateDbArg = if cfg.stateDb == null then "off" else cfg.stateDb;
   weeklyToFiveHourMultiplierArg =
     if cfg.weeklyToFiveHourMultiplier == null then "off" else toString cfg.weeklyToFiveHourMultiplier;
 in
@@ -88,6 +90,48 @@ in
       description = "Cap for total 5h capacity: effective 5h percent is min(raw 5h, weekly percent times this multiplier). Set to null to disable the cap.";
     };
 
+    stateDb = mkOption {
+      type = types.nullOr types.str;
+      default = defaultStateDb;
+      description = "SQLite history database path. Set to null to disable history, trends, and audit storage.";
+    };
+
+    historyWriteSeconds = mkOption {
+      type = types.ints.between 1 3600;
+      default = 60;
+      description = "Minimum interval between persisted history snapshots.";
+    };
+
+    historyRetentionDays = mkOption {
+      type = types.ints.between 1 3650;
+      default = 30;
+      description = "Number of days to retain SQLite history and audit events.";
+    };
+
+    benchmarkSummary = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "Optional codex-quota-benchmark summary.json path displayed in the Trends tab.";
+    };
+
+    alertFiveHourMinPlus = mkOption {
+      type = types.nullOr types.number;
+      default = null;
+      description = "Optional machine-readable alert threshold for total 5h capacity in Plus units.";
+    };
+
+    alertWeeklyMinPlus = mkOption {
+      type = types.nullOr types.number;
+      default = null;
+      description = "Optional machine-readable alert threshold for total weekly capacity in Plus units.";
+    };
+
+    alertBestAccountsMin = mkOption {
+      type = types.nullOr types.int;
+      default = null;
+      description = "Optional machine-readable alert threshold for best recommended accounts.";
+    };
+
     openFirewall = mkOption {
       type = types.bool;
       default = false;
@@ -142,7 +186,14 @@ in
           + "--gateway-health-url ${escapeShellArg cfg.gatewayHealthUrl} "
           + "--log-level ${escapeShellArg cfg.logLevel}"
           + optionalString (cfg.authDir != null) " --auth-dir ${escapeShellArg cfg.authDir}"
-          + " --weekly-to-five-hour-multiplier ${escapeShellArg weeklyToFiveHourMultiplierArg}";
+          + " --weekly-to-five-hour-multiplier ${escapeShellArg weeklyToFiveHourMultiplierArg}"
+          + " --state-db ${escapeShellArg stateDbArg}"
+          + " --history-write-seconds ${toString cfg.historyWriteSeconds}"
+          + " --history-retention-days ${toString cfg.historyRetentionDays}"
+          + optionalString (cfg.benchmarkSummary != null) " --benchmark-summary ${escapeShellArg cfg.benchmarkSummary}"
+          + optionalString (cfg.alertFiveHourMinPlus != null) " --alert-five-hour-min-plus ${toString cfg.alertFiveHourMinPlus}"
+          + optionalString (cfg.alertWeeklyMinPlus != null) " --alert-weekly-min-plus ${toString cfg.alertWeeklyMinPlus}"
+          + optionalString (cfg.alertBestAccountsMin != null) " --alert-best-accounts-min ${toString cfg.alertBestAccountsMin}";
         Restart = "on-failure";
         RestartSec = "5s";
         LockPersonality = true;
@@ -154,6 +205,8 @@ in
         ProtectKernelModules = true;
         ProtectKernelTunables = true;
         ProtectSystem = "strict";
+        StateDirectory = defaultAccount;
+        ReadWritePaths = lib.optional (cfg.stateDb != null) (builtins.dirOf cfg.stateDb);
         RestrictAddressFamilies = [
           "AF_INET"
           "AF_INET6"

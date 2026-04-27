@@ -8,6 +8,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
+from .history import HistoryStore, enhance_snapshot_with_history, is_disabled_path
 from .quota import QuotaSampler
 from .snapshot import (
     DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER,
@@ -111,6 +112,11 @@ class CPAMonitor:
         logs_refresh_seconds,
         timeout_seconds,
         weekly_to_five_hour_multiplier=DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER,
+        state_db="",
+        history_write_seconds=60,
+        history_retention_days=30,
+        benchmark_summary_path="",
+        alert_thresholds=None,
     ):
         self.management_base_url = management_base_url.rstrip("/")
         self.gateway_health_url = gateway_health_url
@@ -119,12 +125,23 @@ class CPAMonitor:
         self.logs_refresh_seconds = logs_refresh_seconds or max(refresh_seconds * 4, 60)
         self.timeout_seconds = timeout_seconds
         self.weekly_to_five_hour_multiplier = weekly_to_five_hour_multiplier
+        self.benchmark_summary_path = benchmark_summary_path or ""
+        self.alert_thresholds = alert_thresholds or {}
         self.logger = logging.getLogger("codex-quota-monitor")
         self._lock = threading.Lock()
         self._last_snapshot = None
         self._last_refresh_monotonic = 0.0
         self._endpoint_cache = {}
         self._quota_sampler = QuotaSampler(self.auth_dir, refresh_seconds, timeout_seconds)
+        self._history_store = (
+            None
+            if is_disabled_path(state_db)
+            else HistoryStore(
+                state_db,
+                write_seconds=history_write_seconds,
+                retention_days=history_retention_days,
+            )
+        )
 
     def get_snapshot(self):
         with self._lock:
@@ -202,11 +219,11 @@ class CPAMonitor:
                 stale_snapshot["error"] = "; ".join(endpoint_errors) if endpoint_errors else stale_snapshot.get("error")
                 stale_snapshot = refresh_alerts_for_stale_snapshot(stale_snapshot)
                 self.logger.warning("refresh failed, serving cached snapshot: %s", stale_snapshot["statusText"])
-                return stale_snapshot
+                return self._enhance_snapshot(stale_snapshot)
 
             error_text = "; ".join(endpoint_errors) if endpoint_errors else "No CPA data found yet."
             self.logger.warning("no snapshot available yet: %s", error_text)
-            return build_unavailable_snapshot(error_text)
+            return self._enhance_snapshot(build_unavailable_snapshot(error_text))
 
         sampled_candidates = [value for value in (auth_files_fetched_at, usage_fetched_at) if value is not None]
         sampled_at = min(sampled_candidates) if sampled_candidates else now_local()
@@ -240,7 +257,16 @@ class CPAMonitor:
             safe_int((((usage_payload or {}).get("usage") or {}).get("total_tokens"))),
             snapshot["summary"]["alertsPill"],
         )
-        return snapshot
+        return self._enhance_snapshot(snapshot)
+
+    def _enhance_snapshot(self, snapshot):
+        return enhance_snapshot_with_history(
+            snapshot,
+            history_store=self._history_store,
+            benchmark_summary_path=self.benchmark_summary_path,
+            alert_thresholds=self.alert_thresholds,
+            weekly_to_five_hour_multiplier=self.weekly_to_five_hour_multiplier,
+        )
 
     def _load_json(self, cache_name, url, *, ttl_seconds, default_payload=None):
         cache = self._endpoint_cache.setdefault(cache_name, {})
@@ -296,6 +322,11 @@ class MonitorRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/status":
             snapshot = self.monitor.get_snapshot()
             json_response(self, HTTPStatus.OK, snapshot)
+            return
+
+        if parsed.path == "/api/alerts":
+            snapshot = self.monitor.get_snapshot()
+            json_response(self, HTTPStatus.OK, snapshot.get("apiAlerts") or {})
             return
 
         if parsed.path in ("/monitor.css", "/monitor.js"):

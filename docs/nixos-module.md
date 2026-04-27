@@ -43,6 +43,13 @@ The flake exports `nixosModules.default` and `nixosModules.codex-quota-monitor`.
 - `services.codexQuotaMonitor.refreshSeconds`
 - `services.codexQuotaMonitor.timeoutSeconds`
 - `services.codexQuotaMonitor.weeklyToFiveHourMultiplier`
+- `services.codexQuotaMonitor.stateDb`
+- `services.codexQuotaMonitor.historyWriteSeconds`
+- `services.codexQuotaMonitor.historyRetentionDays`
+- `services.codexQuotaMonitor.benchmarkSummary`
+- `services.codexQuotaMonitor.alertFiveHourMinPlus`
+- `services.codexQuotaMonitor.alertWeeklyMinPlus`
+- `services.codexQuotaMonitor.alertBestAccountsMin`
 - `services.codexQuotaMonitor.openFirewall`
 - `services.codexQuotaMonitor.logLevel`
 
@@ -53,5 +60,10 @@ The flake exports `nixosModules.default` and `nixosModules.codex-quota-monitor`.
 - Firewall: closed
 - Service account: `codex-quota-monitor`
 - Weekly-to-5h multiplier: `4.0`; set `weeklyToFiveHourMultiplier = null` to disable the cap. Weekly exhaustion still removes that account from total 5h capacity.
+- SQLite history DB: `/var/lib/codex-quota-monitor/history.sqlite3`; set `stateDb = null` to disable Trends and Audit persistence.
+- History write interval: `60` seconds
+- History retention: `30` days
+- Benchmark summary: disabled until `benchmarkSummary` points to a `codex-quota-benchmark` `summary.json`
+- Threshold alerts: disabled until an `alert*` option is set; they are exposed through `/api/alerts`
 
 If you want LAN access from a phone or e-ink, set `listenAddress = "0.0.0.0"` and `openFirewall = true`.

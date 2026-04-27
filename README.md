@@ -10,7 +10,9 @@ Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth p
 
 - `Pool`: 5h and weekly known capacity in Plus units, with Team counted 1:1, Prolite counted 10:1, and other non-Plus plans remaining visible without affecting those totals; an account with exhausted weekly quota contributes `0` to total 5h capacity
 - `Resets`: 5h and weekly reset schedules sorted from nearest to latest, with compact Beijing-time targets
+- `Trends`: SQLite-backed burn rate, ETA, and optional benchmark summary import
 - `Usage`: request/token totals, hourly/day buckets, model breakdown, and account split from `CLIProxyAPI` usage statistics
+- `Audit`: recent account-pool, plan, status, quota-window, and benchmark-summary changes derived from stored snapshots
 - `Alerts`: only hard auth failures, hard quota exhaustion without a scheduled reset, and monitor/source degradation; reset-scheduled usage-limit cooldowns stay visible in `Pool` / `Resets` without turning the account card red
 - `Status`: gateway reachability and refresh health for the current CPA snapshot
 - `Fast`: current CPA fast override state (`On`, `Off`, `Inherit`, or `Unknown`) in the Pool metrics
@@ -36,6 +38,7 @@ nix run .#codex-quota-monitor -- \
 
 The default bind is `127.0.0.1:4515`. If you want phone or e-ink access on the local network, pass `--host 0.0.0.0` and expose the port intentionally.
 By default, total `5h` capacity is capped by `weekly remaining * 4.0`, so an account with low weekly quota cannot overstate the `5h` pool. Pass `--weekly-to-five-hour-multiplier <number>` to override that relationship, or `--weekly-to-five-hour-multiplier off` / `none` to disable the cap. The benchmark report includes a conservative recommended value.
+Direct `nix run` keeps SQLite history off unless you pass `--state-db /path/to/history.sqlite3`. The NixOS module enables history by default under `/var/lib/codex-quota-monitor/history.sqlite3`.
 
 ### Run With Python
 
@@ -70,6 +73,8 @@ The full workflow, selector rules, output files, and weekly-to-5h multiplier rep
 - A reachable `CLIProxyAPI` management gateway, usually something like `http://127.0.0.1:8318`
 - A reachable gateway health endpoint, usually something like `http://127.0.0.1:8317/healthz`
 - Optional direct Codex auth files if you want 5h and weekly quota sampling instead of pool-only visibility
+- Optional SQLite state database if you want Trends, ETA, and Audit history
+- Optional `codex-quota-benchmark` `summary.json` if you want the Trends tab to display benchmark calibration
 
 ## For Agents
 
