@@ -17,22 +17,28 @@
           <p class="hero-subtitle">Quota-first status for desktop, mobile, and small-screen browsers.</p>
         </div>
         <div class="summary-grid" aria-label="Quota summary">
-          <article class="summary-card is-unknown" id="five-hour-card">
+          <article class="summary-card summary-card-primary is-unknown" id="five-hour-card">
             <div class="summary-label">5h</div>
             <div class="summary-value" id="five-hour-pill">Loading</div>
           </article>
-          <article class="summary-card is-unknown" id="weekly-card">
+          <article class="summary-card summary-card-primary is-unknown" id="weekly-card">
             <div class="summary-label">Weekly</div>
             <div class="summary-value" id="weekly-pill">Loading</div>
           </article>
-          <article class="summary-card is-unknown" id="alerts-card">
-            <div class="summary-label">Alerts</div>
-            <div class="summary-value" id="alerts-pill">Loading</div>
-          </article>
-          <article class="summary-card is-unknown" id="gateway-card">
-            <div class="summary-label">Gateway</div>
-            <div class="summary-value" id="gateway-pill">Loading</div>
-          </article>
+          <div class="summary-rail" aria-label="Runtime summary">
+            <article class="summary-card summary-card-compact is-unknown" id="alerts-card">
+              <div class="summary-label">Alerts</div>
+              <div class="summary-value" id="alerts-pill">Loading</div>
+            </article>
+            <article class="summary-card summary-card-compact is-unknown" id="gateway-card">
+              <div class="summary-label">Gateway</div>
+              <div class="summary-value" id="gateway-pill">Loading</div>
+            </article>
+            <article class="summary-card summary-card-compact is-unknown" id="fast-card">
+              <div class="summary-label">Fast</div>
+              <div class="summary-value" id="fast-pill">Loading</div>
+            </article>
+          </div>
         </div>
         <p class="hero-subline" id="hero-subline">Waiting for the first CPA snapshot.</p>
       </section>

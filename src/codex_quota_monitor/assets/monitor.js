@@ -9,6 +9,13 @@ var LAST_TAB_SIGNATURES = {
   traffic: null,
   alerts: null
 };
+var SUMMARY_CARD_VARIANTS = {
+  "five-hour-card": "summary-card-primary",
+  "weekly-card": "summary-card-primary",
+  "alerts-card": "summary-card-compact",
+  "gateway-card": "summary-card-compact",
+  "fast-card": "summary-card-compact"
+};
 
 function text(value, fallback) {
   if (typeof value === "string" && value.length > 0) {
@@ -71,7 +78,8 @@ function setClassName(id, className) {
 }
 
 function setSummaryTone(id, tone) {
-  setClassName(id, "summary-card is-" + tone);
+  var variant = SUMMARY_CARD_VARIANTS[id] || "";
+  setClassName(id, "summary-card" + (variant ? " " + variant : "") + " is-" + safeTone(tone, "unknown"));
 }
 
 function lastDisplayNumber(value) {
@@ -93,6 +101,12 @@ function summaryTone(kind, value) {
   }
   if (kind === "alerts") {
     return lower.indexOf("clean") !== -1 || lower === "0 alert" || lower === "0 alerts" ? "good" : "bad";
+  }
+  if (kind === "fast") {
+    if (lower.indexOf("on") !== -1) {
+      return "good";
+    }
+    return "unknown";
   }
   var number = lastDisplayNumber(lower);
   if (number === null) {
@@ -138,13 +152,18 @@ function clampPercent(value) {
   return value;
 }
 
+function safeTone(value, fallback) {
+  var tone = text(value, fallback || "good");
+  return tone === "good" || tone === "warn" || tone === "bad" || tone === "unknown" ? tone : fallback || "good";
+}
+
 function renderAccountSignals(account) {
   var parts = [];
   var status = text(account.statusLabel, text(account.summary, ""));
 
   if (status) {
     parts.push(
-      '<span class="account-chip is-' + escapeHtml(text(account.tone, "good")) + '">' +
+      '<span class="account-chip is-' + safeTone(account.tone, "good") + '">' +
         escapeHtml(status) +
       "</span>"
     );
@@ -234,6 +253,11 @@ function renderQuotaLines(windows, compact) {
       : "";
     var noteHtml = "";
     var note = text(windowData.note, "");
+    var resetText = text(windowData.remainingText, "");
+    if (resetText && text(windowData.beijingTimeText, "")) {
+      resetText = resetText + " / " + text(windowData.beijingTimeText, "");
+    }
+    var resetHtml = resetText ? '<div class="quota-reset">' + escapeHtml(resetText) + "</div>" : "";
     if (!compact && shouldShowWindowNote(windowData)) {
       if (!compact || note !== lastVisibleNote) {
         noteHtml = '<div class="quota-note">' + escapeHtml(note) + "</div>";
@@ -248,6 +272,7 @@ function renderQuotaLines(windows, compact) {
           '<span class="quota-value">' + escapeHtml(text(windowData.valueText, "Unknown")) + "</span>" +
         "</div>" +
         '<div class="' + escapeHtml(barClass) + '" aria-hidden="true">' + fillHtml + "</div>" +
+        resetHtml +
         noteHtml +
       "</div>"
     );
@@ -272,7 +297,7 @@ function renderPoolAccounts(targetId, accounts) {
     var badgeHtml = badge ? '<span class="account-badge">' + escapeHtml(badge) + "</span>" : "";
     var signalsHtml = renderAccountSignals(account);
     htmlParts.push(
-      '<article class="account account-' + escapeHtml(text(account.tone, "good")) + '">' +
+      '<article class="account account-' + safeTone(account.tone, "good") + '">' +
         '<div class="account-head">' +
           '<div class="account-title-wrap">' +
             '<h3 class="account-title" title="' + escapeHtml(title) + '">' + escapeHtml(title) + "</h3>" +
@@ -353,9 +378,9 @@ function renderListItems(targetId, items, emptyMessage) {
     }
     var noteHtml = item.note ? '<p class="list-note">' + escapeHtml(item.note) + "</p>" : "";
     htmlParts.push(
-      '<article class="list-item list-item-' + escapeHtml(text(item.tone, "good")) + '">' +
+      '<article class="list-item list-item-' + safeTone(item.tone, "good") + '">' +
         '<div class="list-head">' +
-          '<div>' +
+          '<div class="list-title-wrap">' +
             '<h3 class="list-title">' + escapeHtml(text(item.title, "Untitled")) + "</h3>" +
             '<p class="list-summary">' + escapeHtml(text(item.summary, "")) + "</p>" +
           '</div>' +
@@ -415,7 +440,7 @@ function renderResetColumns(targetId, columns) {
     for (var rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
       var row = rows[rowIndex] || {};
       var known = typeof row.resetsInSeconds === "number" && row.resetAt;
-      var rowClass = known ? "reset-row" : "reset-row reset-row-unknown";
+      var rowClass = known ? "reset-row reset-row-" + safeTone(row.tone, "good") : "reset-row reset-row-unknown";
       var account = text(row.account, "Unknown account");
       rowParts.push(
         '<div class="' + rowClass + '">' +
@@ -481,10 +506,12 @@ function renderSnapshot(snapshot) {
   setText("five-hour-pill", summary.fiveHourPill, "5h unknown");
   setText("weekly-pill", summary.weeklyPill, "Weekly unknown");
   setText("alerts-pill", summary.alertsPill, "Alerts unknown");
+  setText("fast-pill", summary.fastPill, "Fast unknown");
   setSummaryTone("gateway-card", summaryTone("gateway", summary.gatewayPill));
   setSummaryTone("five-hour-card", summaryTone("quota", summary.fiveHourPill));
   setSummaryTone("weekly-card", summaryTone("quota", summary.weeklyPill));
   setSummaryTone("alerts-card", summaryTone("alerts", summary.alertsPill));
+  setSummaryTone("fast-card", summaryTone("fast", summary.fastPill));
   setText("hero-subline", summary.subline, "Waiting for usage totals.");
 
   setText("source-text", safeSnapshot.sourceText, "No snapshot");
