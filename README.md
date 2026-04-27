@@ -46,7 +46,7 @@ nix run .#codex-quota-monitor -- \
 ```
 
 The default bind is `127.0.0.1:4515`. If you want phone or e-ink access on the local network, pass `--host 0.0.0.0` and expose the port intentionally.
-By default, total `5h` capacity is capped by `weekly remaining * 4.0`, so an account with low weekly quota cannot overstate the `5h` pool. Pass `--weekly-to-five-hour-multiplier <number>` to override that relationship, or `--weekly-to-five-hour-multiplier off` / `none` to disable the cap. The benchmark report includes a conservative recommended value.
+By default, total `5h` capacity is capped by `weekly remaining * 6.0`, so an account with low weekly quota cannot overstate the `5h` pool. Pass `--weekly-to-five-hour-multiplier <number>` to override that relationship, or `--weekly-to-five-hour-multiplier off` / `none` to disable the cap. The benchmark report includes a conservative recommended value.
 Direct `nix run` keeps SQLite history off unless you pass `--state-db /path/to/history.sqlite3`. The NixOS module enables history by default under `/var/lib/codex-quota-monitor/history.sqlite3`. The Trends tab displays the latest 6h of stored samples.
 
 ### Run With Python

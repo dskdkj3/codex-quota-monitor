@@ -59,7 +59,7 @@
 - 端口：`4515`
 - 防火墙：默认不放行
 - service 账号：`codex-quota-monitor`
-- weekly-to-5h multiplier：默认 `4.0`；设 `weeklyToFiveHourMultiplier = null` 可以关闭 cap。账号 weekly 已耗尽时仍会从总 `5h` 容量里移除
+- weekly-to-5h multiplier：默认 `6.0`；设 `weeklyToFiveHourMultiplier = null` 可以关闭 cap。账号 weekly 已耗尽时仍会从总 `5h` 容量里移除
 - SQLite history DB：`/var/lib/codex-quota-monitor/history.sqlite3`；设 `stateDb = null` 可以关闭 Trends 和 Audit 持久化
 - 历史写入间隔：`60` 秒
 - 历史保留期：`30` 天

@@ -92,7 +92,7 @@ def parse_args(argv=None):
         ),
         help=(
             "Cap total 5h capacity as min(raw 5h, weekly percent * multiplier). "
-            "Defaults to 4.0; use 'off' or 'none' to disable."
+            "Defaults to 6.0; use 'off' or 'none' to disable."
         ),
     )
     parser.add_argument(

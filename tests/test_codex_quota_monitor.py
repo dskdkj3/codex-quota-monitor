@@ -34,7 +34,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(args.host, "127.0.0.1")
         self.assertEqual(args.port, 4515)
-        self.assertEqual(args.weekly_to_five_hour_multiplier, 4.0)
+        self.assertEqual(args.weekly_to_five_hour_multiplier, 6.0)
 
     def test_parse_args_prefers_new_env_names_but_accepts_legacy_aliases(self):
         with mock.patch.dict(
@@ -120,7 +120,7 @@ class RuntimeTests(unittest.TestCase):
             timeout_seconds=5,
         )
 
-        self.assertEqual(monitor.weekly_to_five_hour_multiplier, 4.0)
+        self.assertEqual(monitor.weekly_to_five_hour_multiplier, 6.0)
 
 
 class MetricsRenderingTests(unittest.TestCase):
@@ -1068,7 +1068,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertIn("Weekly-capped 1", five_hour["summary"])
         self.assertIn("weekly remaining times 3.50", snapshot["tabs"]["pool"]["footnote"])
 
-    def test_build_dashboard_snapshot_defaults_to_four_times_weekly_multiplier(self):
+    def test_build_dashboard_snapshot_defaults_to_six_times_weekly_multiplier(self):
         snapshot = self.build_minimal_snapshot(
             auth_files=[
                 {
@@ -1094,11 +1094,11 @@ class DashboardSnapshotTests(unittest.TestCase):
         )
 
         five_hour = snapshot["tabs"]["pool"]["capacityWindows"][0]
-        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.40 Plus")
-        self.assertEqual(five_hour["knownUnitsText"], "0.40 Plus")
-        self.assertEqual(five_hour["knownBarPercent"], 40)
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.60 Plus")
+        self.assertEqual(five_hour["knownUnitsText"], "0.60 Plus")
+        self.assertEqual(five_hour["knownBarPercent"], 60)
         self.assertIn("Weekly-capped 1", five_hour["summary"])
-        self.assertIn("weekly remaining times 4.00", snapshot["tabs"]["pool"]["footnote"])
+        self.assertIn("weekly remaining times 6.00", snapshot["tabs"]["pool"]["footnote"])
 
     def test_build_dashboard_snapshot_allows_disabling_weekly_multiplier(self):
         snapshot = self.build_minimal_snapshot(

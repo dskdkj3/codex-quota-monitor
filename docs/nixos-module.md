@@ -59,7 +59,7 @@ The flake exports `nixosModules.default` and `nixosModules.codex-quota-monitor`.
 - Port: `4515`
 - Firewall: closed
 - Service account: `codex-quota-monitor`
-- Weekly-to-5h multiplier: `4.0`; set `weeklyToFiveHourMultiplier = null` to disable the cap. Weekly exhaustion still removes that account from total 5h capacity.
+- Weekly-to-5h multiplier: `6.0`; set `weeklyToFiveHourMultiplier = null` to disable the cap. Weekly exhaustion still removes that account from total 5h capacity.
 - SQLite history DB: `/var/lib/codex-quota-monitor/history.sqlite3`; set `stateDb = null` to disable Trends and Audit persistence.
 - History write interval: `60` seconds
 - History retention: `30` days

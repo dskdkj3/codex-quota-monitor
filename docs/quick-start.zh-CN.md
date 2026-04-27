@@ -34,7 +34,7 @@ nix run .#codex-quota-monitor -- \
   --auth-dir /path/to/auth-files
 ```
 
-默认会用 `weekly 剩余 * 4.0` 约束总 `5h` 容量。用 `--weekly-to-five-hour-multiplier <数字>` 可以覆盖倍率，用 `--weekly-to-five-hour-multiplier off` / `none` 可以关闭这个 cap。
+默认会用 `weekly 剩余 * 6.0` 约束总 `5h` 容量。用 `--weekly-to-five-hour-multiplier <数字>` 可以覆盖倍率，用 `--weekly-to-five-hour-multiplier off` / `none` 可以关闭这个 cap。
 
 直接 `nix run` 默认不写 SQLite 历史。需要 Trends、ETA 和 Audit 时，给它一个可写 state DB；Trends 标签页会展示最近 `6h` 的历史样本：
 

@@ -46,7 +46,7 @@ nix run .#codex-quota-monitor -- \
 ```
 
 默认监听在 `127.0.0.1:4515`。如果你要让手机或 e-ink 通过局域网访问，需要显式传 `--host 0.0.0.0`，并且有意识地开放端口。
-默认会用 `weekly 剩余 * 4.0` 约束总 `5h` 容量，避免 weekly 剩余额很低的账号把 `5h` 池估得过高。传 `--weekly-to-five-hour-multiplier <数字>` 可以覆盖这个倍率；传 `--weekly-to-five-hour-multiplier off` / `none` 可以关闭这个 cap。Benchmark 报告会给一个保守推荐值。
+默认会用 `weekly 剩余 * 6.0` 约束总 `5h` 容量，避免 weekly 剩余额很低的账号把 `5h` 池估得过高。传 `--weekly-to-five-hour-multiplier <数字>` 可以覆盖这个倍率；传 `--weekly-to-five-hour-multiplier off` / `none` 可以关闭这个 cap。Benchmark 报告会给一个保守推荐值。
 直接 `nix run` 默认不写 SQLite 历史；需要 Trends / ETA / Audit 时传 `--state-db /path/to/history.sqlite3`。NixOS module 默认会把历史写到 `/var/lib/codex-quota-monitor/history.sqlite3`。Trends 标签页展示最近 `6h` 的历史样本。
 
 ### 用 Python 运行

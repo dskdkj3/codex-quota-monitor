@@ -15,7 +15,7 @@ let
   cfg = config.services.codexQuotaMonitor;
   defaultAccount = "codex-quota-monitor";
   defaultStateDb = "/var/lib/codex-quota-monitor/history.sqlite3";
-  defaultWeeklyToFiveHourMultiplier = 4;
+  defaultWeeklyToFiveHourMultiplier = 6;
   stateDbArg = if cfg.stateDb == null then "off" else cfg.stateDb;
   weeklyToFiveHourMultiplierArg =
     if cfg.weeklyToFiveHourMultiplier == null then "off" else toString cfg.weeklyToFiveHourMultiplier;
