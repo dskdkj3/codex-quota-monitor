@@ -392,6 +392,10 @@ class DashboardSnapshotTests(unittest.TestCase):
                     "success_count": 3,
                     "failure_count": 1,
                     "total_tokens": 3200,
+                    "requests_by_hour": {"12": 1, "13": 3},
+                    "tokens_by_hour": {"12": 1200, "13": 2000},
+                    "requests_by_day": {"2026-04-20": 4},
+                    "tokens_by_day": {"2026-04-20": 3200},
                     "apis": {
                         "sk-dummy": {
                             "models": {
@@ -560,9 +564,15 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(weekly_rows[0]["beijingTimeText"], "04-23 04:00")
 
         traffic_tab = snapshot["tabs"]["traffic"]
+        self.assertEqual(traffic_tab["title"], "Usage Statistics")
         self.assertEqual(traffic_tab["metrics"][0]["value"], "4")
         self.assertEqual(traffic_tab["metrics"][1]["value"], "75%")
-        self.assertEqual(traffic_tab["metrics"][3]["value"], "Round Robin + Sticky")
+        self.assertEqual(traffic_tab["metrics"][3]["label"], "RPM")
+        self.assertEqual(traffic_tab["metrics"][3]["value"], "0.03")
+        self.assertEqual(traffic_tab["metrics"][4]["value"], "26.7")
+        self.assertEqual(traffic_tab["charts"][0]["title"], "Requests by Hour")
+        self.assertEqual(traffic_tab["charts"][0]["items"][1]["barPercent"], 100)
+        self.assertEqual(traffic_tab["models"][0]["title"], "gpt-5.4")
 
         alerts_tab = snapshot["tabs"]["alerts"]
         self.assertEqual(alerts_tab["metrics"][0]["value"], "0")
@@ -1106,8 +1116,10 @@ class PageRenderingTests(unittest.TestCase):
         self.assertIn('id="five-hour-pill"', page)
         self.assertIn('id="pool-capacity"', page)
         self.assertIn('id="pool-accounts"', page)
+        self.assertIn('id="usage-charts"', page)
+        self.assertIn('id="usage-models"', page)
         self.assertIn(">Pool<", page)
-        self.assertIn(">Traffic<", page)
+        self.assertIn(">Usage<", page)
         self.assertIn(">Alerts<", page)
 
     def test_monitor_js_no_longer_renders_failed_chip(self):
@@ -1129,12 +1141,18 @@ class PageRenderingTests(unittest.TestCase):
             thread.join(timeout=5)
 
         render_signals = script.split("function renderAccountSignals(account) {", 1)[1].split(
-            "function shouldShowAccountNote(account) {", 1
+            "function shouldShowWindowNote(windowData) {", 1
         )[0]
-        self.assertIn('String(account.requests) + " req"', render_signals)
-        self.assertIn('formatCompactNumber(account.tokens) + " tok"', render_signals)
+        self.assertIn("account.statusLabel", render_signals)
+        self.assertNotIn("account.requests", render_signals)
+        self.assertNotIn("account.tokens", render_signals)
         self.assertNotIn("account.failed", render_signals)
         self.assertNotIn('" fail"', render_signals)
+        render_pool = script.split("function renderPoolAccounts(targetId, accounts) {", 1)[1].split(
+            "function renderUsageCharts(targetId, charts) {", 1
+        )[0]
+        self.assertNotIn("account.note", render_pool)
+        self.assertNotIn("account.meta", render_pool)
 
 
 class DummyMonitor:

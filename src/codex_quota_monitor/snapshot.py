@@ -424,12 +424,29 @@ def fast_mode_state(config_payload, endpoint_errors=None):
     }
 
 
+def numeric_buckets(value):
+    if not isinstance(value, dict):
+        return {}
+
+    buckets = {}
+    for key, raw_number in value.items():
+        number = safe_int(raw_number)
+        if number > 0:
+            buckets[str(key)] = number
+    return buckets
+
+
 def build_usage_index(usage_payload):
     usage_root = (usage_payload or {}).get("usage") or {}
+    usage_apis = usage_root.get("apis") if isinstance(usage_root.get("apis"), dict) else {}
     accounts = {}
 
-    for api_entry in (usage_root.get("apis") or {}).values():
+    for api_entry in usage_apis.values():
+        if not isinstance(api_entry, dict):
+            continue
         for model_id, model_entry in (api_entry.get("models") or {}).items():
+            if not isinstance(model_entry, dict):
+                continue
             for detail in model_entry.get("details") or []:
                 key = str(detail.get("auth_index") or detail.get("source") or model_id or "unknown")
                 timestamp = parse_timestamp(detail.get("timestamp"))
@@ -478,10 +495,11 @@ def build_usage_index(usage_payload):
             "totalTokens": safe_int(usage_root.get("total_tokens")),
         },
         "accounts": normalized_accounts,
-        "requestsByHour": (usage_payload or {}).get("requests_by_hour") or {},
-        "requestsByDay": (usage_payload or {}).get("requests_by_day") or {},
-        "tokensByHour": (usage_payload or {}).get("tokens_by_hour") or {},
-        "tokensByDay": (usage_payload or {}).get("tokens_by_day") or {},
+        "apis": usage_apis,
+        "requestsByHour": numeric_buckets(usage_root.get("requests_by_hour")),
+        "requestsByDay": numeric_buckets(usage_root.get("requests_by_day")),
+        "tokensByHour": numeric_buckets(usage_root.get("tokens_by_hour")),
+        "tokensByDay": numeric_buckets(usage_root.get("tokens_by_day")),
     }
 
 
@@ -1211,6 +1229,217 @@ def build_traffic_distribution(contexts):
     return items
 
 
+def format_usage_rate(value):
+    if value is None:
+        return "n/a"
+    if value >= 100:
+        return str(int(round(value)))
+    if value >= 10:
+        return f"{value:.1f}"
+    return f"{value:.2f}"
+
+
+def average_per_minute(total_value, buckets):
+    if not buckets:
+        return None
+    return float(safe_int(total_value)) / float(len(buckets) * 60)
+
+
+def usage_bucket_items(buckets, value_formatter):
+    if not buckets:
+        return []
+
+    max_value = max(buckets.values()) if buckets else 0
+    if max_value <= 0:
+        return []
+
+    items = []
+    for label in sorted(buckets):
+        value = safe_int(buckets[label])
+        bar_percent = int(round((float(value) / float(max_value)) * 100))
+        items.append(
+            {
+                "label": label,
+                "value": value,
+                "valueText": value_formatter(value),
+                "barPercent": max(1, min(100, bar_percent)) if value > 0 else 0,
+            }
+        )
+    return items
+
+
+def usage_chart(title, summary, buckets, value_formatter):
+    return {
+        "title": title,
+        "summary": summary,
+        "items": usage_bucket_items(buckets, value_formatter),
+    }
+
+
+def build_usage_charts(usage_index):
+    charts = [
+        usage_chart(
+            "Requests by Hour",
+            "CPA hourly request buckets.",
+            usage_index["requestsByHour"],
+            format_count,
+        ),
+        usage_chart(
+            "Tokens by Hour",
+            "CPA hourly token buckets.",
+            usage_index["tokensByHour"],
+            format_tokens,
+        ),
+        usage_chart(
+            "Requests by Day",
+            "CPA daily request buckets.",
+            usage_index["requestsByDay"],
+            format_count,
+        ),
+        usage_chart(
+            "Tokens by Day",
+            "CPA daily token buckets.",
+            usage_index["tokensByDay"],
+            format_tokens,
+        ),
+    ]
+    return [chart for chart in charts if chart["items"]]
+
+
+def aggregate_model_details(details):
+    totals = {
+        "input": 0,
+        "output": 0,
+        "cached": 0,
+        "reasoning": 0,
+        "failed": 0,
+        "latencyTotal": 0,
+        "latencyCount": 0,
+        "latencyMin": None,
+        "latencyMax": None,
+    }
+
+    for detail in details or []:
+        if not isinstance(detail, dict):
+            continue
+        tokens = detail.get("tokens") or {}
+        totals["input"] += safe_int(tokens.get("input_tokens"))
+        totals["output"] += safe_int(tokens.get("output_tokens"))
+        totals["cached"] += safe_int(tokens.get("cached_tokens"))
+        totals["reasoning"] += safe_int(tokens.get("reasoning_tokens"))
+        if detail.get("failed"):
+            totals["failed"] += 1
+        latency_ms = safe_int(detail.get("latency_ms"))
+        if latency_ms > 0:
+            totals["latencyTotal"] += latency_ms
+            totals["latencyCount"] += 1
+            totals["latencyMin"] = (
+                latency_ms if totals["latencyMin"] is None else min(totals["latencyMin"], latency_ms)
+            )
+            totals["latencyMax"] = (
+                latency_ms if totals["latencyMax"] is None else max(totals["latencyMax"], latency_ms)
+            )
+    return totals
+
+
+def build_usage_model_items(usage_index):
+    total_requests = usage_index["totals"]["totalRequests"]
+    items = []
+
+    for api_index, api_name in enumerate(sorted(usage_index["apis"]), start=1):
+        api_entry = usage_index["apis"].get(api_name) or {}
+        if not isinstance(api_entry, dict):
+            continue
+        for model_id, model_entry in sorted((api_entry.get("models") or {}).items()):
+            if not isinstance(model_entry, dict):
+                continue
+            details = model_entry.get("details") or []
+            requests = safe_int(model_entry.get("total_requests")) or len(details)
+            tokens = safe_int(model_entry.get("total_tokens")) or sum(
+                safe_int((detail.get("tokens") or {}).get("total_tokens"))
+                for detail in details
+                if isinstance(detail, dict)
+            )
+            detail_totals = aggregate_model_details(details)
+            token_bits = []
+            if detail_totals["input"]:
+                token_bits.append(f"In {format_tokens(detail_totals['input'])}")
+            if detail_totals["output"]:
+                token_bits.append(f"Out {format_tokens(detail_totals['output'])}")
+            if detail_totals["cached"]:
+                token_bits.append(f"Cached {format_tokens(detail_totals['cached'])}")
+            if detail_totals["reasoning"]:
+                token_bits.append(f"Reasoning {format_tokens(detail_totals['reasoning'])}")
+
+            latency_text = ""
+            if detail_totals["latencyCount"]:
+                average_latency = int(round(float(detail_totals["latencyTotal"]) / float(detail_totals["latencyCount"])))
+                latency_text = (
+                    f"Latency avg {average_latency}ms · min {detail_totals['latencyMin']}ms · "
+                    f"max {detail_totals['latencyMax']}ms"
+                )
+
+            summary_bits = [f"API {api_index}", f"{format_tokens(tokens)} tok"]
+            if detail_totals["failed"]:
+                summary_bits.append(count_label(detail_totals["failed"], "failure"))
+
+            items.append(
+                {
+                    "tone": "warn" if detail_totals["failed"] else "good",
+                    "title": str(model_id or "unknown"),
+                    "badge": f"{format_count(requests)} req",
+                    "requestCount": requests,
+                    "summary": " · ".join(summary_bits),
+                    "detail": " · ".join(token_bits) if token_bits else "No token breakdown reported.",
+                    "note": latency_text,
+                    "barPercent": format_share_percent(requests, total_requests),
+                }
+            )
+
+    items.sort(key=lambda item: (-safe_int(item.get("requestCount")), item["title"]))
+    return items
+
+
+def build_usage_statistics_section(usage_index, usage_stats_enabled, traffic_items):
+    totals = usage_index["totals"]
+    total_requests = totals["totalRequests"]
+    success_count = totals["successCount"]
+    failure_count = totals["failureCount"]
+    total_tokens = totals["totalTokens"]
+    request_rate = average_per_minute(total_requests, usage_index["requestsByHour"])
+    token_rate = average_per_minute(total_tokens, usage_index["tokensByHour"])
+    charts = build_usage_charts(usage_index)
+
+    if not usage_stats_enabled:
+        summary = "CPA usage statistics are disabled; totals and charts may stay empty."
+    elif charts:
+        summary = "CPA in-memory usage totals, hourly/day buckets, and live pool load."
+    else:
+        summary = "CPA totals are available, but hourly/day buckets are empty."
+
+    return {
+        "title": "Usage Statistics",
+        "summary": summary,
+        "metrics": [
+            {"label": "Requests", "value": format_count(total_requests), "detail": "total recorded by CPA"},
+            {
+                "label": "Success",
+                "value": format_percent(success_count, total_requests),
+                "detail": f"{format_count(success_count)} ok / {format_count(failure_count)} failed",
+            },
+            {"label": "Tokens", "value": format_tokens(total_tokens), "detail": "total tokens recorded by CPA"},
+            {"label": "RPM", "value": format_usage_rate(request_rate), "detail": "average across hourly request buckets"},
+            {"label": "TPM", "value": format_usage_rate(token_rate), "detail": "average across hourly token buckets"},
+        ],
+        "charts": charts,
+        "distributionTitle": "Pool Load",
+        "distribution": traffic_items,
+        "modelsTitle": "Model Breakdown",
+        "models": build_usage_model_items(usage_index),
+        "footnote": "Usage Statistics mirrors CPA's in-memory usage view; it does not add a separate history store.",
+    }
+
+
 def build_reset_rows(contexts, window_definition):
     rows = []
     for context in contexts:
@@ -1473,7 +1702,7 @@ def build_dashboard_snapshot(
     if endpoint_errors:
         status_text += " " + "; ".join(endpoint_errors)
     if not usage_stats_enabled:
-        status_text += " Usage statistics are disabled, so traffic numbers may lag or stay empty."
+        status_text += " Usage statistics are disabled, so usage numbers may lag or stay empty."
     if quota_status:
         status_text += " " + quota_status
 
@@ -1500,6 +1729,7 @@ def build_dashboard_snapshot(
             "5h total capacity is capped by weekly remaining times "
             f"{format_fractional_count(weekly_multiplier)}; weekly exhaustion removes the account entirely."
         )
+    usage_statistics = build_usage_statistics_section(usage_index, usage_stats_enabled, traffic_items)
 
     return {
         "available": True,
@@ -1538,25 +1768,14 @@ def build_dashboard_snapshot(
                 "footnote": (
                     "5h / weekly windows come from direct Codex usage sampling, one account every "
                     f"{quota_refresh_seconds(quota_payload) or 15}s. CLIProxyAPI still supplies pool membership and "
-                    "traffic. Unknown means there is no successful direct sample yet; cached values may remain visible if "
+                    "usage totals. Unknown means there is no successful direct sample yet; cached values may remain visible if "
                     "the direct quota source degrades. Team counts 1:1 and Prolite counts 10:1 in total capacity; "
                     "other non-Plus plans stay visible in the grid but remain excluded. "
                     + capacity_policy
                 ),
             },
             "resets": reset_schedule,
-            "traffic": {
-                "title": "Traffic Snapshot",
-                "summary": "Current CPA totals and live account split. This view does not store local history yet.",
-                "metrics": [
-                    {"label": "Requests", "value": format_count(total_requests), "detail": "total recorded by CPA"},
-                    {"label": "Success", "value": format_percent(success_count, total_requests), "detail": f"{format_count(success_count)} ok / {format_count(total_requests)} total"},
-                    {"label": "Failures", "value": format_count(failure_count), "detail": "current aggregate failures"},
-                    {"label": "Routing", "value": routing["text"], "detail": routing["detail"]},
-                ],
-                "distribution": traffic_items,
-                "footnote": "Traffic uses current CPA usage totals only. This panel deliberately does not fake trend lines or cache hit rates.",
-            },
+            "traffic": usage_statistics,
             "alerts": alerts,
         },
     }
@@ -1621,11 +1840,15 @@ def build_unavailable_snapshot(error_text):
             ),
             "traffic": dict(
                 EMPTY_TAB,
-                title="Traffic Snapshot",
+                title="Usage Statistics",
                 summary="No usage data yet.",
                 metrics=[],
+                charts=[],
+                distributionTitle="Pool Load",
                 distribution=[],
-                footnote="Traffic totals appear after CPA reports usage.",
+                modelsTitle="Model Breakdown",
+                models=[],
+                footnote="Usage totals appear after CPA reports usage.",
             ),
             "alerts": alerts,
         },

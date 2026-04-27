@@ -138,47 +138,19 @@ function clampPercent(value) {
   return value;
 }
 
-function formatCompactNumber(value) {
-  if (typeof value !== "number" || isNaN(value)) {
-    return "";
-  }
-  if (value >= 1000000) {
-    return (Math.round((value / 1000000) * 10) / 10).toString().replace(/\.0$/, "") + "M";
-  }
-  if (value >= 1000) {
-    return (Math.round((value / 1000) * 10) / 10).toString().replace(/\.0$/, "") + "K";
-  }
-  return String(Math.round(value));
-}
-
 function renderAccountSignals(account) {
   var parts = [];
+  var status = text(account.statusLabel, text(account.summary, ""));
 
-  if (account.summary) {
-    parts.push('<span class="account-chip is-status">' + escapeHtml(account.summary) + "</span>");
-  }
-  if (typeof account.sharePercent === "number") {
-    parts.push('<span class="account-chip">' + escapeHtml(String(account.sharePercent) + "% share") + "</span>");
-  }
-  if (typeof account.requests === "number") {
-    parts.push('<span class="account-chip">' + escapeHtml(String(account.requests) + " req") + "</span>");
-  }
-  if (typeof account.tokens === "number") {
-    parts.push('<span class="account-chip">' + escapeHtml(formatCompactNumber(account.tokens) + " tok") + "</span>");
+  if (status) {
+    parts.push(
+      '<span class="account-chip is-' + escapeHtml(text(account.tone, "good")) + '">' +
+        escapeHtml(status) +
+      "</span>"
+    );
   }
 
   return parts.join("");
-}
-
-function shouldShowAccountNote(account) {
-  var note = text(account.note, "");
-  if (!note) {
-    return false;
-  }
-  if (text(account.tone, "good") !== "good") {
-    return true;
-  }
-  return /(resets|failed|not succeeded|waiting for first|unavailable|disabled|missing|error)/i.test(note);
 }
 
 function shouldShowWindowNote(windowData) {
@@ -262,7 +234,7 @@ function renderQuotaLines(windows, compact) {
       : "";
     var noteHtml = "";
     var note = text(windowData.note, "");
-    if (!compact || shouldShowWindowNote(windowData)) {
+    if (!compact && shouldShowWindowNote(windowData)) {
       if (!compact || note !== lastVisibleNote) {
         noteHtml = '<div class="quota-note">' + escapeHtml(note) + "</div>";
         lastVisibleNote = note;
@@ -299,11 +271,6 @@ function renderPoolAccounts(targetId, accounts) {
     var badge = text(account.badge, "");
     var badgeHtml = badge ? '<span class="account-badge">' + escapeHtml(badge) + "</span>" : "";
     var signalsHtml = renderAccountSignals(account);
-    var meta = text(account.meta, "");
-    var metaHtml = meta ? '<p class="account-meta">' + escapeHtml(meta) + "</p>" : "";
-    var noteHtml = shouldShowAccountNote(account)
-      ? '<p class="account-note">' + escapeHtml(text(account.note, "")) + "</p>"
-      : "";
     htmlParts.push(
       '<article class="account account-' + escapeHtml(text(account.tone, "good")) + '">' +
         '<div class="account-head">' +
@@ -313,9 +280,52 @@ function renderPoolAccounts(targetId, accounts) {
           badgeHtml +
         "</div>" +
         '<div class="account-signals">' + signalsHtml + "</div>" +
-        metaHtml +
-        noteHtml +
         '<div class="quota-grid">' + renderQuotaLines(account.windows || [], true) + "</div>" +
+      "</article>"
+    );
+  }
+
+  setHtml(targetId, htmlParts.join(""));
+}
+
+function renderUsageCharts(targetId, charts) {
+  var safeCharts = charts && charts.length ? charts : [];
+  var htmlParts = [];
+
+  if (!safeCharts.length) {
+    setHtml(targetId, '<article class="usage-chart"><p class="empty">No usage buckets are available yet.</p></article>');
+    return;
+  }
+
+  for (var chartIndex = 0; chartIndex < safeCharts.length; chartIndex += 1) {
+    var chart = safeCharts[chartIndex] || {};
+    var rows = chart.items && chart.items.length ? chart.items : [];
+    var rowParts = [];
+
+    if (!rows.length) {
+      rowParts.push('<div class="usage-bar-row"><p class="empty">No buckets yet.</p></div>');
+    }
+
+    for (var rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+      var row = rows[rowIndex] || {};
+      rowParts.push(
+        '<div class="usage-bar-row">' +
+          '<span class="usage-bar-label">' + escapeHtml(text(row.label, "")) + "</span>" +
+          '<span class="usage-bar-track" aria-hidden="true">' +
+            '<span class="usage-bar-fill" style="width:' + clampPercent(row.barPercent) + '%"></span>' +
+          "</span>" +
+          '<span class="usage-bar-value">' + escapeHtml(text(row.valueText, "")) + "</span>" +
+        "</div>"
+      );
+    }
+
+    htmlParts.push(
+      '<article class="usage-chart">' +
+        '<div class="usage-chart-head">' +
+          '<h3 class="usage-chart-title">' + escapeHtml(text(chart.title, "Usage")) + "</h3>" +
+          '<span class="usage-chart-summary">' + escapeHtml(text(chart.summary, "")) + "</span>" +
+        "</div>" +
+        '<div class="usage-bars">' + rowParts.join("") + "</div>" +
       "</article>"
     );
   }
@@ -373,11 +383,15 @@ function renderPoolTab(tabData) {
 
 function renderTrafficTab(tabData) {
   var safeTab = tabData || {};
-  setText("tab-title-traffic", safeTab.title, "Traffic Snapshot");
+  setText("tab-title-traffic", safeTab.title, "Usage Statistics");
   setText("tab-summary-traffic", safeTab.summary, "");
   setText("tab-footnote-traffic", safeTab.footnote, "");
+  setText("usage-load-title", safeTab.distributionTitle, "Pool Load");
+  setText("usage-models-title", safeTab.modelsTitle, "Model Breakdown");
   renderMetricCards("traffic-metrics", safeTab.metrics || []);
-  renderListItems("traffic-distribution", safeTab.distribution || [], "No traffic split is available yet.");
+  renderUsageCharts("usage-charts", safeTab.charts || []);
+  renderListItems("traffic-distribution", safeTab.distribution || [], "No pool load is available yet.");
+  renderListItems("usage-models", safeTab.models || [], "No model breakdown is available yet.");
 }
 
 function renderResetColumns(targetId, columns) {

@@ -7,23 +7,23 @@
 
   <rect x="104" y="190" width="280" height="94" rx="10" fill="#e7f3eb" stroke="#d7ded6"/>
   <rect x="104" y="190" width="8" height="94" rx="4" fill="#2f6d4f"/>
-  <text x="130" y="228" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="18" font-weight="800">GATEWAY</text>
-  <text x="130" y="264" fill="#17202a" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="30" font-weight="800">Gateway OK</text>
+  <text x="130" y="228" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="18" font-weight="800">5H</text>
+  <text x="130" y="264" fill="#17202a" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="30" font-weight="800">5h 11.50 Plus</text>
 
   <rect x="404" y="190" width="280" height="94" rx="10" fill="#e7f3eb" stroke="#d7ded6"/>
   <rect x="404" y="190" width="8" height="94" rx="4" fill="#2f6d4f"/>
-  <text x="430" y="228" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="18" font-weight="800">5H</text>
-  <text x="430" y="264" fill="#17202a" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="30" font-weight="800">5h 11.50 Plus</text>
+  <text x="430" y="228" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="18" font-weight="800">WEEKLY</text>
+  <text x="430" y="264" fill="#17202a" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="30" font-weight="800">Weekly 11.75</text>
 
-  <rect x="704" y="190" width="280" height="94" rx="10" fill="#e7f3eb" stroke="#d7ded6"/>
-  <rect x="704" y="190" width="8" height="94" rx="4" fill="#2f6d4f"/>
-  <text x="730" y="228" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="18" font-weight="800">WEEKLY</text>
-  <text x="730" y="264" fill="#17202a" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="30" font-weight="800">Weekly 11.75</text>
+  <rect x="704" y="190" width="280" height="94" rx="10" fill="#f6e5e2" stroke="#d7ded6"/>
+  <rect x="704" y="190" width="8" height="94" rx="4" fill="#9b3f37"/>
+  <text x="730" y="228" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="18" font-weight="800">ALERTS</text>
+  <text x="730" y="264" fill="#17202a" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="30" font-weight="800">1 alert</text>
 
-  <rect x="1004" y="190" width="292" height="94" rx="10" fill="#f6e5e2" stroke="#d7ded6"/>
-  <rect x="1004" y="190" width="8" height="94" rx="4" fill="#9b3f37"/>
-  <text x="1030" y="228" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="18" font-weight="800">ALERTS</text>
-  <text x="1030" y="264" fill="#17202a" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="30" font-weight="800">1 alert</text>
+  <rect x="1004" y="190" width="292" height="94" rx="10" fill="#f8faf7" stroke="#d7ded6"/>
+  <rect x="1004" y="190" width="8" height="94" rx="4" fill="#2f6d4f"/>
+  <text x="1030" y="228" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="18" font-weight="800">GATEWAY</text>
+  <text x="1030" y="264" fill="#17202a" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="30" font-weight="800">Gateway OK</text>
 
   <text x="104" y="326" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="20">Round Robin + Sticky · 4 req · 3.2K tok</text>
 
@@ -38,7 +38,7 @@
   <rect x="404" y="452" width="280" height="54" rx="10" fill="#ffffff" stroke="#d7ded6"/>
   <text x="544" y="487" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="20" font-weight="800" text-anchor="middle">Resets</text>
   <rect x="704" y="452" width="280" height="54" rx="10" fill="#ffffff" stroke="#d7ded6"/>
-  <text x="844" y="487" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="20" font-weight="800" text-anchor="middle">Traffic</text>
+  <text x="844" y="487" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="20" font-weight="800" text-anchor="middle">Usage</text>
   <rect x="1004" y="452" width="292" height="54" rx="10" fill="#ffffff" stroke="#d7ded6"/>
   <text x="1150" y="487" fill="#5c6673" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="20" font-weight="800" text-anchor="middle">Alerts</text>
 

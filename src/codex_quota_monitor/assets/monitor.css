@@ -1,21 +1,23 @@
 :root {
-  --bg: #f5f7f4;
+  --bg: #f5f7f2;
   --surface: #ffffff;
   --surface-muted: #eef2ee;
-  --surface-soft: #f8faf7;
-  --ink: #17202a;
-  --muted: #5c6673;
-  --quiet: #747f8c;
-  --line: #d7ded6;
-  --line-strong: #aeb9b0;
-  --shadow: rgba(35, 45, 55, 0.08);
-  --good: #2f6d4f;
-  --good-bg: #e7f3eb;
-  --warn: #93631e;
-  --warn-bg: #f7eddc;
-  --bad: #9b3f37;
-  --bad-bg: #f6e5e2;
-  --unknown: #667085;
+  --surface-soft: #f9faf7;
+  --ink: #17212d;
+  --muted: #5d6975;
+  --quiet: #7a8490;
+  --line: #d9e0d8;
+  --line-strong: #aab5ae;
+  --shadow: rgba(28, 38, 48, 0.08);
+  --accent: #285f8f;
+  --accent-bg: #e6eef8;
+  --good: #2d6d50;
+  --good-bg: #e6f3ea;
+  --warn: #95631b;
+  --warn-bg: #f8edda;
+  --bad: #9a3e36;
+  --bad-bg: #f7e4e1;
+  --unknown: #647184;
   --unknown-bg: #edf0f3;
 }
 
@@ -28,7 +30,7 @@ body {
   padding: 12px 12px 20px;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Maple Mono NF CN", "Noto Sans Mono CJK SC", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
 }
 
 .sheet {
@@ -46,7 +48,7 @@ body {
 }
 
 .hero {
-  padding: 14px;
+  padding: 14px 14px 12px;
 }
 
 .hero-row {
@@ -68,8 +70,9 @@ body {
 
 .hero-title {
   margin: 5px 0 0;
-  font-size: 30px;
+  font-size: 28px;
   line-height: 1.05;
+  letter-spacing: 0;
 }
 
 .hero-subtitle {
@@ -83,34 +86,38 @@ body {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1.15fr)) minmax(0, 0.8fr);
   gap: 8px;
   margin-top: 12px;
 }
 
 .summary-card {
   min-width: 0;
-  min-height: 74px;
-  padding: 10px;
+  min-height: 70px;
+  padding: 10px 11px;
   border: 1px solid var(--line);
-  border-left: 5px solid var(--unknown);
+  border-top: 4px solid var(--unknown);
   border-radius: 8px;
   background: var(--unknown-bg);
 }
 
 .summary-card.is-good {
-  border-left-color: var(--good);
+  border-top-color: var(--good);
   background: var(--good-bg);
 }
 
 .summary-card.is-warn {
-  border-left-color: var(--warn);
+  border-top-color: var(--warn);
   background: var(--warn-bg);
 }
 
 .summary-card.is-bad {
-  border-left-color: var(--bad);
+  border-top-color: var(--bad);
   background: var(--bad-bg);
+}
+
+#gateway-card {
+  background: var(--surface-soft);
 }
 
 .summary-label {
@@ -124,9 +131,13 @@ body {
 .summary-value {
   margin-top: 8px;
   overflow-wrap: anywhere;
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 800;
   line-height: 1.08;
+}
+
+#gateway-card .summary-value {
+  font-size: 16px;
 }
 
 .hero-subline {
@@ -147,7 +158,8 @@ body {
 }
 
 .status-panel {
-  border-left: 5px solid var(--unknown);
+  padding: 10px 12px;
+  border-left: 4px solid var(--unknown);
   background: var(--unknown-bg);
 }
 
@@ -176,7 +188,7 @@ body {
 
 .status-main {
   margin-top: 5px;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 800;
   line-height: 1.15;
 }
@@ -190,10 +202,10 @@ body {
 }
 
 .status-copy {
-  margin: 9px 0 0;
+  margin: 7px 0 0;
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .tab-bar {
@@ -219,8 +231,8 @@ body {
 }
 
 .tab.is-active {
-  border-color: #253042;
-  background: #253042;
+  border-color: var(--accent);
+  background: var(--accent);
   color: #ffffff;
 }
 
@@ -250,6 +262,21 @@ body {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.summary-value,
+.metric-value,
+.capacity-value,
+.quota-value,
+.reset-remaining,
+.reset-time,
+.usage-bar-label,
+.usage-bar-value,
+.account-title,
+.account-badge,
+.list-badge {
+  font-family: "Maple Mono NF CN", "Noto Sans Mono CJK SC", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 .mini-metrics {
@@ -376,13 +403,13 @@ body {
 
 .account-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 8px;
 }
 
 .account {
-  padding: 9px;
-  border-left: 5px solid var(--good);
+  padding: 10px;
+  border-left: 4px solid var(--good);
 }
 
 .account-bad {
@@ -418,7 +445,7 @@ body {
   margin: 0;
   overflow: hidden;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.25;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
@@ -451,7 +478,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 7px;
+  margin-top: 8px;
 }
 
 .account-chip {
@@ -465,13 +492,19 @@ body {
   line-height: 1.3;
 }
 
-.account-chip.is-status {
+.account-chip.is-good {
   border-color: rgba(47, 109, 79, 0.22);
   background: var(--good-bg);
   color: #244d3a;
 }
 
-.account-chip.is-issue {
+.account-chip.is-warn {
+  border-color: rgba(149, 99, 27, 0.22);
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.account-chip.is-bad {
   border-color: rgba(155, 63, 55, 0.2);
   background: var(--bad-bg);
   color: var(--bad);
@@ -557,6 +590,92 @@ body {
   gap: 8px;
 }
 
+.section-title {
+  margin: 4px 0 -2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.usage-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.usage-chart {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.usage-chart-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.usage-chart-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.usage-chart-summary {
+  color: var(--quiet);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.usage-bars {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.usage-bar-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 56px;
+  gap: 8px;
+  align-items: center;
+}
+
+.usage-bar-label,
+.usage-bar-value {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.usage-bar-value {
+  color: var(--ink);
+  text-align: right;
+}
+
+.usage-bar-track {
+  position: relative;
+  height: 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.usage-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
 .list-item {
   padding: 10px;
   border-left: 5px solid var(--good);
@@ -617,14 +736,15 @@ body {
 
 .reset-row {
   min-width: 0;
-  padding: 8px;
+  padding: 9px;
   border: 1px solid var(--line);
-  border-left: 5px solid var(--good);
+  border-left: 4px solid var(--good);
   border-radius: 8px;
   background: var(--surface);
 }
 
 .reset-row:first-child:not(.reset-row-unknown) {
+  border-left-color: var(--accent);
   background: var(--good-bg);
 }
 
@@ -711,6 +831,7 @@ body {
   }
 
   .capacity-grid,
+  .usage-chart-grid,
   .reset-columns {
     grid-template-columns: 1fr;
   }

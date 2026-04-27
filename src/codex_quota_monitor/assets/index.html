@@ -17,10 +17,6 @@
           <p class="hero-subtitle">Quota-first status for desktop, mobile, and small-screen browsers.</p>
         </div>
         <div class="summary-grid" aria-label="Quota summary">
-          <article class="summary-card is-unknown" id="gateway-card">
-            <div class="summary-label">Gateway</div>
-            <div class="summary-value" id="gateway-pill">Loading</div>
-          </article>
           <article class="summary-card is-unknown" id="five-hour-card">
             <div class="summary-label">5h</div>
             <div class="summary-value" id="five-hour-pill">Loading</div>
@@ -32,6 +28,10 @@
           <article class="summary-card is-unknown" id="alerts-card">
             <div class="summary-label">Alerts</div>
             <div class="summary-value" id="alerts-pill">Loading</div>
+          </article>
+          <article class="summary-card is-unknown" id="gateway-card">
+            <div class="summary-label">Gateway</div>
+            <div class="summary-value" id="gateway-pill">Loading</div>
           </article>
         </div>
         <p class="hero-subline" id="hero-subline">Waiting for the first CPA snapshot.</p>
@@ -52,7 +52,7 @@
         <nav class="tab-bar" aria-label="Dashboard tabs">
           <a class="tab" id="tab-button-pool" href="#pool" data-tab="pool">Pool</a>
           <a class="tab" id="tab-button-resets" href="#resets" data-tab="resets">Resets</a>
-          <a class="tab" id="tab-button-traffic" href="#traffic" data-tab="traffic">Traffic</a>
+          <a class="tab" id="tab-button-traffic" href="#traffic" data-tab="traffic">Usage</a>
           <a class="tab" id="tab-button-alerts" href="#alerts" data-tab="alerts">Alerts</a>
         </nav>
 
@@ -80,12 +80,16 @@
 
         <section class="panel tab-panel" id="tab-panel-traffic">
           <div class="panel-head">
-            <p class="eyebrow">Traffic</p>
+            <p class="eyebrow">Usage</p>
             <h2 class="tab-title" id="tab-title-traffic">Loading</h2>
             <p class="tab-summary" id="tab-summary-traffic"></p>
           </div>
           <div class="mini-metrics" id="traffic-metrics"></div>
+          <div class="usage-chart-grid" id="usage-charts"></div>
+          <h3 class="section-title" id="usage-load-title">Pool Load</h3>
           <div class="list-block" id="traffic-distribution"></div>
+          <h3 class="section-title" id="usage-models-title">Model Breakdown</h3>
+          <div class="list-block" id="usage-models"></div>
           <p class="tab-footnote" id="tab-footnote-traffic"></p>
         </section>
 
