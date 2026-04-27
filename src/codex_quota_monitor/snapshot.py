@@ -466,6 +466,30 @@ def build_duplicate_label_counts(auth_files, usage_index):
     return counts
 
 
+def auth_identity_keys(auth_file):
+    keys = set()
+    for field in ("label", "email", "account", "name", "id"):
+        normalized = normalize_key((auth_file or {}).get(field))
+        if normalized:
+            keys.add(normalized)
+    return keys
+
+
+def usage_entry_identity_keys(usage_entry):
+    keys = set()
+    for source in (usage_entry or {}).get("sources") or []:
+        normalized = normalize_key(source)
+        if normalized:
+            keys.add(normalized)
+    return keys
+
+
+def is_usage_for_current_auth_file(usage_entry, active_identity_keys):
+    if not active_identity_keys:
+        return False
+    return bool(usage_entry_identity_keys(usage_entry) & active_identity_keys)
+
+
 def is_explicit_quota_hit(auth_file, raw_message, parsed_message):
     quota_state = auth_file.get("quota") or {}
     if isinstance(quota_state, dict) and quota_state.get("exceeded"):
@@ -909,12 +933,14 @@ def build_account_contexts(auth_files, usage_index, reference_time, quota_payloa
     duplicate_labels = build_duplicate_label_counts(auth_files, usage_index)
     contexts = []
     seen_keys = set()
+    active_identity_keys = set()
     plan_counts = {"plus": 0, "team": 0, "other": 0}
     quota_samples = (quota_payload or {}).get("samples") or {}
     quota_cycle_seconds = safe_int((quota_payload or {}).get("cycleSeconds")) or 0
 
     for auth_file in auth_files:
         key = auth_key(auth_file)
+        active_identity_keys.update(auth_identity_keys(auth_file))
         usage_entry = usage_index["accounts"].get(key)
         context = build_auth_context(
             auth_file,
@@ -937,6 +963,8 @@ def build_account_contexts(auth_files, usage_index, reference_time, quota_payloa
 
     for key, usage_entry in usage_index["accounts"].items():
         if key in seen_keys:
+            continue
+        if is_usage_for_current_auth_file(usage_entry, active_identity_keys):
             continue
         contexts.append(build_runtime_context(key, usage_entry, reference_time, usage_index["totals"]))
 

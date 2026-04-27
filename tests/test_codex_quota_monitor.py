@@ -139,6 +139,164 @@ class QuotaSamplerTests(unittest.TestCase):
 
 
 class DashboardSnapshotTests(unittest.TestCase):
+    def build_minimal_snapshot(self, *, auth_files, usage_details, quota_samples=None):
+        sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
+        total_tokens = sum(int((detail.get("tokens") or {}).get("total_tokens") or 0) for detail in usage_details)
+        failure_count = sum(1 for detail in usage_details if detail.get("failed"))
+
+        return MODULE.build_dashboard_snapshot(
+            health_payload={"status": "ok"},
+            auth_files_payload={"files": auth_files},
+            usage_payload={
+                "usage": {
+                    "total_requests": len(usage_details),
+                    "success_count": len(usage_details) - failure_count,
+                    "failure_count": failure_count,
+                    "total_tokens": total_tokens,
+                    "apis": {
+                        "sk-dummy": {
+                            "models": {
+                                "gpt-5.4": {
+                                    "details": usage_details,
+                                }
+                            }
+                        }
+                    },
+                }
+            },
+            quota_payload={
+                "status": "warming",
+                "eligibleCount": len(auth_files),
+                "sampledCount": 0,
+                "freshCount": 0,
+                "staleCount": 0,
+                "cycleSeconds": max(15, 15 * max(len(auth_files), 1)),
+                "completedCycle": False,
+                "degraded": False,
+                "attemptedKey": None,
+                "attemptError": None,
+                "samples": quota_samples or {},
+            },
+            routing_payload={"routing": {"strategy": "round-robin"}},
+            usage_stats_payload={"usage-statistics-enabled": True},
+            request_log_payload={"request-log": True},
+            logs_payload={"lines": []},
+            sampled_at=sampled_at,
+        )
+
+    def test_build_dashboard_snapshot_hides_replaced_runtime_slot_with_same_source(self):
+        snapshot = self.build_minimal_snapshot(
+            auth_files=[
+                {
+                    "auth_index": "new-slot",
+                    "label": "account-slot",
+                    "provider": "codex",
+                    "status": "active",
+                    "id_token": {"plan_type": "prolite"},
+                }
+            ],
+            usage_details=[
+                {
+                    "timestamp": "2026-04-20T12:20:00+08:00",
+                    "source": "account-slot",
+                    "auth_index": "old-slot",
+                    "tokens": {"total_tokens": 800},
+                    "failed": False,
+                },
+                {
+                    "timestamp": "2026-04-20T12:22:00+08:00",
+                    "source": "account-slot",
+                    "auth_index": "new-slot",
+                    "tokens": {"total_tokens": 200},
+                    "failed": False,
+                },
+            ],
+        )
+
+        pool_accounts = snapshot["tabs"]["pool"]["accounts"]
+        self.assertEqual([account["title"] for account in pool_accounts], ["account-slot"])
+        self.assertEqual(pool_accounts[0]["badge"], "Prolite")
+        self.assertEqual(pool_accounts[0]["requests"], 1)
+        self.assertNotIn("Runtime", [account["badge"] for account in pool_accounts])
+        self.assertFalse(any("Runtime" in item["summary"] for item in snapshot["tabs"]["traffic"]["distribution"]))
+        self.assertEqual(snapshot["tabs"]["alerts"]["alertCount"], 0)
+
+    def test_build_dashboard_snapshot_keeps_unknown_runtime_slot_without_matching_source(self):
+        snapshot = self.build_minimal_snapshot(
+            auth_files=[
+                {
+                    "auth_index": "known-slot",
+                    "label": "account-slot",
+                    "provider": "codex",
+                    "status": "active",
+                    "id_token": {"plan_type": "plus"},
+                }
+            ],
+            usage_details=[
+                {
+                    "timestamp": "2026-04-20T12:20:00+08:00",
+                    "source": "account-slot",
+                    "auth_index": "orphan-slot",
+                    "tokens": {"total_tokens": 800},
+                    "failed": False,
+                },
+                {
+                    "timestamp": "2026-04-20T12:22:00+08:00",
+                    "source": "account-slot",
+                    "auth_index": "known-slot",
+                    "tokens": {"total_tokens": 200},
+                    "failed": False,
+                },
+            ],
+        )
+
+        pool_accounts = snapshot["tabs"]["pool"]["accounts"]
+        runtime_account = next(account for account in pool_accounts if account["badge"] == "Runtime")
+        self.assertEqual(runtime_account["title"], "account-slot")
+        self.assertEqual(runtime_account["statusLabel"], "Missing auth-file")
+        self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][0]["value"], "1")
+
+    def test_build_dashboard_snapshot_keeps_multiple_current_slots_with_same_label(self):
+        snapshot = self.build_minimal_snapshot(
+            auth_files=[
+                {
+                    "auth_index": "plus-slot",
+                    "label": "account-slot",
+                    "provider": "codex",
+                    "status": "active",
+                    "id_token": {"plan_type": "plus"},
+                },
+                {
+                    "auth_index": "team-slot",
+                    "label": "account-slot",
+                    "provider": "codex",
+                    "status": "active",
+                    "id_token": {"plan_type": "team"},
+                },
+            ],
+            usage_details=[
+                {
+                    "timestamp": "2026-04-20T12:20:00+08:00",
+                    "source": "account-slot",
+                    "auth_index": "plus-slot",
+                    "tokens": {"total_tokens": 800},
+                    "failed": False,
+                },
+                {
+                    "timestamp": "2026-04-20T12:22:00+08:00",
+                    "source": "account-slot",
+                    "auth_index": "team-slot",
+                    "tokens": {"total_tokens": 200},
+                    "failed": False,
+                },
+            ],
+        )
+
+        pool_accounts = snapshot["tabs"]["pool"]["accounts"]
+        self.assertEqual(len(pool_accounts), 2)
+        self.assertEqual(sorted(account["badge"] for account in pool_accounts), ["Plus", "Team"])
+        self.assertEqual(snapshot["summary"]["poolPill"], "1 Plus · 1 Non-Plus")
+
     def test_build_dashboard_snapshot_exposes_capacity_windows_and_hard_alerts(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
         snapshot = MODULE.build_dashboard_snapshot(
