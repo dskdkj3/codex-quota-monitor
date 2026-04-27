@@ -63,7 +63,10 @@ codex-quota-monitor \
 ```bash
 curl -fsS http://127.0.0.1:4515/healthz
 curl -fsS http://127.0.0.1:4515/api/status | jq '.summary'
+curl -fsS http://127.0.0.1:4515/api/recommendations | jq '.summary'
+curl -fsS http://127.0.0.1:4515/api/diagnostics | jq '.summary'
 curl -fsS http://127.0.0.1:4515/api/alerts | jq '.'
+curl -fsS http://127.0.0.1:4515/metrics | sed -n '1,20p'
 ```
 
 进程起来之后，在浏览器打开 `http://127.0.0.1:4515/`。

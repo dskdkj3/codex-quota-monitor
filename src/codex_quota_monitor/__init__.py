@@ -1,7 +1,7 @@
 from .version import __version__
 from .cli import main, parse_args
 from .quota import QuotaSampler, is_quota_sample_stale, parse_quota_usage_payload
-from .runtime import CPAMonitor, MonitorRequestHandler
+from .runtime import CPAMonitor, MonitorRequestHandler, prometheus_escape_label, render_prometheus_metrics
 from .history import HistoryStore, build_recommendations, enhance_snapshot_with_history
 from .snapshot import (
     DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER,
@@ -25,5 +25,7 @@ __all__ = [
     "main",
     "parse_quota_usage_payload",
     "parse_args",
+    "prometheus_escape_label",
     "render_page",
+    "render_prometheus_metrics",
 ]

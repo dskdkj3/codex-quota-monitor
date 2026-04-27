@@ -20,6 +20,9 @@ from .version import USER_AGENT
 from .web import load_asset_payload, render_page
 
 
+PROMETHEUS_SOURCES = ("live", "partial", "stale", "unavailable")
+
+
 def write_payload(handler, payload):
     try:
         handler.wfile.write(payload)
@@ -57,6 +60,149 @@ def html_response(handler, status_code, payload):
 def asset_response(handler, asset_name):
     payload, content_type = load_asset_payload(asset_name)
     bytes_response(handler, HTTPStatus.OK, payload, content_type=content_type)
+
+
+def text_response(handler, status_code, payload, *, content_type):
+    bytes_response(handler, status_code, payload.encode("utf-8"), content_type=content_type)
+
+
+def prometheus_escape_label(value):
+    return str(value or "").replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
+
+
+def optional_number(value):
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def prometheus_labels(labels):
+    labels = labels or {}
+    if not labels:
+        return ""
+    parts = [
+        f'{key}="{prometheus_escape_label(value)}"'
+        for key, value in sorted(labels.items())
+    ]
+    return "{" + ",".join(parts) + "}"
+
+
+def prometheus_sample(name, value, labels=None):
+    number = optional_number(value)
+    if number is None:
+        return None
+    return f"{name}{prometheus_labels(labels)} {number:g}"
+
+
+def append_prometheus_sample(lines, name, value, labels=None):
+    sample = prometheus_sample(name, value, labels)
+    if sample is not None:
+        lines.append(sample)
+
+
+def render_prometheus_metrics(snapshot):
+    snapshot = snapshot or {}
+    lines = [
+        "# HELP codex_quota_monitor_snapshot_available Whether the latest dashboard snapshot is available.",
+        "# TYPE codex_quota_monitor_snapshot_available gauge",
+    ]
+    append_prometheus_sample(lines, "codex_quota_monitor_snapshot_available", 1 if snapshot.get("available") else 0)
+
+    lines.extend(
+        [
+            "# HELP codex_quota_monitor_snapshot_source Current snapshot source as a one-hot gauge.",
+            "# TYPE codex_quota_monitor_snapshot_source gauge",
+        ]
+    )
+    current_source = str(snapshot.get("source") or "unavailable")
+    for source in PROMETHEUS_SOURCES:
+        append_prometheus_sample(
+            lines,
+            "codex_quota_monitor_snapshot_source",
+            1 if current_source == source else 0,
+            {"source": source},
+        )
+
+    gateway_ok = bool(snapshot.get("gatewayOk"))
+    lines.extend(
+        [
+            "# HELP codex_quota_monitor_gateway_up Whether CLIProxyAPI gateway health is OK.",
+            "# TYPE codex_quota_monitor_gateway_up gauge",
+        ]
+    )
+    append_prometheus_sample(lines, "codex_quota_monitor_gateway_up", 1 if gateway_ok else 0)
+
+    active_alert_count = safe_int((((snapshot.get("tabs") or {}).get("alerts") or {}).get("alertCount")))
+    active_alert_count += len(snapshot.get("thresholdAlerts") or [])
+    recommendations = snapshot.get("recommendations") or {}
+    lines.extend(
+        [
+            "# HELP codex_quota_monitor_alert_count Active monitor alert count.",
+            "# TYPE codex_quota_monitor_alert_count gauge",
+        ]
+    )
+    append_prometheus_sample(lines, "codex_quota_monitor_alert_count", active_alert_count)
+
+    for metric_name, key, help_text in (
+        ("codex_quota_monitor_best_accounts", "bestCount", "Recommended best account count."),
+        ("codex_quota_monitor_usable_accounts", "usableCount", "Recommended usable account count."),
+        ("codex_quota_monitor_avoid_accounts", "avoidCount", "Recommended avoid account count."),
+    ):
+        lines.extend([f"# HELP {metric_name} {help_text}", f"# TYPE {metric_name} gauge"])
+        append_prometheus_sample(lines, metric_name, recommendations.get(key, 0))
+
+    lines.extend(
+        [
+            "# HELP codex_quota_monitor_capacity_known_plus_units Known remaining capacity in Plus units.",
+            "# TYPE codex_quota_monitor_capacity_known_plus_units gauge",
+            "# HELP codex_quota_monitor_capacity_tracked_plus_units Tracked capacity denominator in Plus units.",
+            "# TYPE codex_quota_monitor_capacity_tracked_plus_units gauge",
+            "# HELP codex_quota_monitor_capacity_unknown_accounts Accounts without known direct quota for this window.",
+            "# TYPE codex_quota_monitor_capacity_unknown_accounts gauge",
+            "# HELP codex_quota_monitor_capacity_exhausted_accounts Accounts exhausted for this window.",
+            "# TYPE codex_quota_monitor_capacity_exhausted_accounts gauge",
+            "# HELP codex_quota_monitor_capacity_stale_accounts Accounts with stale direct quota samples for this window.",
+            "# TYPE codex_quota_monitor_capacity_stale_accounts gauge",
+        ]
+    )
+    capacity_windows = (((snapshot.get("tabs") or {}).get("pool") or {}).get("capacityWindows") or [])
+    for window in capacity_windows:
+        labels = {"window": window.get("id") or window.get("label") or "unknown"}
+        append_prometheus_sample(
+            lines,
+            "codex_quota_monitor_capacity_known_plus_units",
+            window.get("knownUnits"),
+            labels,
+        )
+        append_prometheus_sample(
+            lines,
+            "codex_quota_monitor_capacity_tracked_plus_units",
+            window.get("trackedUnits"),
+            labels,
+        )
+        append_prometheus_sample(
+            lines,
+            "codex_quota_monitor_capacity_unknown_accounts",
+            window.get("unknownCount"),
+            labels,
+        )
+        append_prometheus_sample(
+            lines,
+            "codex_quota_monitor_capacity_exhausted_accounts",
+            window.get("exhaustedCount"),
+            labels,
+        )
+        append_prometheus_sample(
+            lines,
+            "codex_quota_monitor_capacity_stale_accounts",
+            window.get("staleCount"),
+            labels,
+        )
+
+    return "\n".join(lines) + "\n"
 
 
 def refresh_alerts_for_stale_snapshot(snapshot):
@@ -327,6 +473,26 @@ class MonitorRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/alerts":
             snapshot = self.monitor.get_snapshot()
             json_response(self, HTTPStatus.OK, snapshot.get("apiAlerts") or {})
+            return
+
+        if parsed.path == "/api/recommendations":
+            snapshot = self.monitor.get_snapshot()
+            json_response(self, HTTPStatus.OK, snapshot.get("recommendations") or {})
+            return
+
+        if parsed.path == "/api/diagnostics":
+            snapshot = self.monitor.get_snapshot()
+            json_response(self, HTTPStatus.OK, snapshot.get("diagnostics") or {})
+            return
+
+        if parsed.path == "/metrics":
+            snapshot = self.monitor.get_snapshot()
+            text_response(
+                self,
+                HTTPStatus.OK,
+                render_prometheus_metrics(snapshot),
+                content_type="text/plain; version=0.0.4; charset=utf-8",
+            )
             return
 
         if parsed.path in ("/monitor.css", "/monitor.js"):

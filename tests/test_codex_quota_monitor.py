@@ -123,6 +123,27 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(monitor.weekly_to_five_hour_multiplier, 4.0)
 
 
+class MetricsRenderingTests(unittest.TestCase):
+    def test_prometheus_label_escape_handles_special_characters(self):
+        self.assertEqual(MODULE.prometheus_escape_label('source "x"\\line\nnext'), 'source \\"x\\"\\\\line\\nnext')
+
+    def test_prometheus_metrics_include_recommendations_capacity_and_source(self):
+        sampled_at = dt.datetime(2026, 4, 20, 12, 0, tzinfo=dt.timezone.utc).astimezone()
+        snapshot = MODULE.enhance_snapshot_with_history(
+            build_history_dashboard(sampled_at=sampled_at, five_hour_percent=80),
+            alert_thresholds={"best_accounts_min": 2},
+        )
+        metrics = MODULE.render_prometheus_metrics(snapshot)
+
+        self.assertIn("codex_quota_monitor_snapshot_available 1", metrics)
+        self.assertIn('codex_quota_monitor_snapshot_source{source="live"} 1', metrics)
+        self.assertIn("codex_quota_monitor_gateway_up 1", metrics)
+        self.assertIn("codex_quota_monitor_alert_count 1", metrics)
+        self.assertIn("codex_quota_monitor_best_accounts 1", metrics)
+        self.assertIn('codex_quota_monitor_capacity_known_plus_units{window="5h"} 0.8', metrics)
+        self.assertIn('codex_quota_monitor_capacity_tracked_plus_units{window="week"} 1', metrics)
+
+
 def build_history_dashboard(*, sampled_at, five_hour_percent, weekly_percent=80, status="active"):
     return MODULE.build_dashboard_snapshot(
         health_payload={"status": "ok"},
@@ -792,6 +813,13 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertNotIn("Quota", [item["badge"] for item in alerts_tab["items"]])
         self.assertIn("config: timed out", snapshot["statusText"])
         self.assertIn("direct Codex usage", snapshot["statusText"])
+        diagnostics = snapshot["diagnostics"]
+        diagnostic_by_title = {item["title"]: item for item in diagnostics["items"]}
+        self.assertEqual(diagnostic_by_title["Routing config API"]["tone"], "warn")
+        self.assertEqual(diagnostic_by_title["Auth files API"]["tone"], "good")
+        self.assertEqual(diagnostic_by_title["Usage API"]["tone"], "good")
+        self.assertEqual(diagnostic_by_title["Direct quota sampling"]["tone"], "warn")
+        self.assertIn("warning", diagnostics["summary"])
 
     def test_build_dashboard_snapshot_keeps_non_plus_unknown_until_first_direct_sample(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
@@ -1345,12 +1373,14 @@ class PageRenderingTests(unittest.TestCase):
         self.assertIn('id="pool-recommendations"', page)
         self.assertIn('id="trends-windows"', page)
         self.assertIn('id="audit-items"', page)
+        self.assertIn('id="diagnostics-items"', page)
         self.assertIn('id="usage-charts"', page)
         self.assertIn('id="usage-models"', page)
         self.assertIn(">Pool<", page)
         self.assertIn(">Trends<", page)
         self.assertIn(">Usage<", page)
         self.assertIn(">Audit<", page)
+        self.assertIn(">Diagnostics<", page)
         self.assertIn(">Alerts<", page)
 
     def test_monitor_js_no_longer_renders_failed_chip(self):
@@ -1427,6 +1457,7 @@ class HandlerTests(unittest.TestCase):
             self.assertEqual(payload["recommendations"]["bestCount"], 0)
             self.assertIn("trends", payload["tabs"])
             self.assertIn("audit", payload["tabs"])
+            self.assertIn("diagnostics", payload["tabs"])
             self.assertEqual(payload["tabs"]["alerts"]["items"][0]["badge"], "Monitor")
 
         with urllib.request.urlopen(self.base_url + "/api/alerts", timeout=5) as response:
@@ -1436,6 +1467,28 @@ class HandlerTests(unittest.TestCase):
             self.assertFalse(payload["ok"])
             self.assertEqual(payload["alertCount"], 1)
             self.assertEqual(payload["items"][0]["badge"], "Monitor")
+
+        with urllib.request.urlopen(self.base_url + "/api/recommendations", timeout=5) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers.get_content_type(), "application/json")
+            payload = json.loads(response.read().decode("utf-8"))
+            self.assertEqual(payload["summary"], self.snapshot["recommendations"]["summary"])
+            self.assertEqual(payload["avoidCount"], 0)
+
+        with urllib.request.urlopen(self.base_url + "/api/diagnostics", timeout=5) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers.get_content_type(), "application/json")
+            payload = json.loads(response.read().decode("utf-8"))
+            self.assertEqual(payload["title"], "Diagnostics")
+            self.assertIn("SQLite history", [item["title"] for item in payload["items"]])
+
+        with urllib.request.urlopen(self.base_url + "/metrics", timeout=5) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers.get_content_type(), "text/plain")
+            payload = response.read().decode("utf-8")
+            self.assertIn("codex_quota_monitor_snapshot_available 0", payload)
+            self.assertIn('codex_quota_monitor_snapshot_source{source="unavailable"} 1', payload)
+            self.assertIn("codex_quota_monitor_alert_count 1", payload)
 
         with urllib.request.urlopen(self.base_url + "/", timeout=5) as response:
             self.assertEqual(response.status, 200)
@@ -1460,6 +1513,7 @@ class HandlerTests(unittest.TestCase):
             self.assertIn("renderPoolTab", script)
             self.assertIn("renderTrendsTab", script)
             self.assertIn("renderAuditTab", script)
+            self.assertIn("renderDiagnosticsTab", script)
             self.assertIn("renderCapacityCards", script)
             self.assertIn("renderAccountSignals", script)
             self.assertIn("shouldShowWindowNote", script)

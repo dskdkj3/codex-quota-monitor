@@ -13,10 +13,19 @@ Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth p
 - `Trends`: latest 6h of SQLite-backed burn rate, ETA, and optional benchmark summary import
 - `Usage`: request/token totals, hourly/day buckets, model breakdown, and account split from `CLIProxyAPI` usage statistics
 - `Audit`: recent account-pool, plan, status, quota-window, and benchmark-summary changes derived from stored snapshots
+- `Diagnostics`: data-source health for the gateway, CPA management APIs, direct quota sampling, SQLite history, and benchmark import
 - `Alerts`: only hard auth failures, hard quota exhaustion without a scheduled reset, and monitor/source degradation; reset-scheduled usage-limit cooldowns stay visible in `Pool` / `Resets` without turning the account card red
 - `Status`: gateway reachability and refresh health for the current CPA snapshot
 - `Fast`: current CPA fast override state (`On`, `Off`, `Inherit`, or `Unknown`) in the Pool metrics
 - `Target devices`: desktop, mobile, and small-screen browsers
+
+Machine-readable endpoints:
+
+- `/api/status`: full dashboard snapshot
+- `/api/recommendations`: `Best` / `Usable` / `Avoid` account recommendations for agent wrappers
+- `/api/diagnostics`: data-source diagnosis without auth secret contents
+- `/api/alerts`: alert payload for simple health checks
+- `/metrics`: Prometheus text metrics for capacity, recommendation counts, alerts, source, and gateway health
 
 ## Quick Links
 

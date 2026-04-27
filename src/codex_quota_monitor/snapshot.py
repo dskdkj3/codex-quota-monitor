@@ -1676,6 +1676,214 @@ def build_alert_section(items):
     }
 
 
+def diagnostic_item(tone, title, badge, summary, detail, note=""):
+    return {
+        "tone": tone,
+        "title": title,
+        "badge": badge,
+        "summary": summary,
+        "detail": trim_text(detail, limit=220),
+        "note": note,
+    }
+
+
+def diagnostic_error(endpoint_errors, prefixes):
+    for error in endpoint_errors or []:
+        text = str(error or "").strip()
+        if any(text.startswith(prefix) for prefix in prefixes):
+            return text
+    return ""
+
+
+def diagnostic_counts(items):
+    counts = {"good": 0, "warn": 0, "bad": 0, "unknown": 0}
+    for item in items or []:
+        tone = item.get("tone")
+        if tone in counts:
+            counts[tone] += 1
+    return counts
+
+
+def build_diagnostics_summary(items):
+    counts = diagnostic_counts(items)
+    active = counts["warn"] + counts["bad"] + counts["unknown"]
+    if active == 0:
+        return "All monitor data sources are usable."
+    bits = []
+    if counts["bad"]:
+        bits.append(count_label(counts["bad"], "bad source"))
+    if counts["warn"]:
+        bits.append(count_label(counts["warn"], "warning"))
+    if counts["unknown"]:
+        bits.append(count_label(counts["unknown"], "unknown"))
+    return " · ".join(bits)
+
+
+def build_diagnostics_section(
+    *,
+    source,
+    source_text,
+    status_text,
+    gateway_ok,
+    endpoint_errors,
+    quota_payload,
+    usage_stats_enabled,
+):
+    endpoint_errors = endpoint_errors or []
+    items = []
+
+    source_tone = {
+        "live": "good",
+        "partial": "warn",
+        "stale": "bad",
+        "unavailable": "bad",
+    }.get(source, "unknown")
+    items.append(
+        diagnostic_item(
+            source_tone,
+            "Snapshot source",
+            source.title() if source else "Unknown",
+            source_text or "No source text.",
+            status_text or "No status detail is available.",
+        )
+    )
+
+    health_error = diagnostic_error(endpoint_errors, ("healthz:",))
+    if health_error:
+        items.append(
+            diagnostic_item(
+                "bad",
+                "Gateway health",
+                "Bad",
+                "Health endpoint failed.",
+                health_error,
+            )
+        )
+    else:
+        items.append(
+            diagnostic_item(
+                "good" if gateway_ok else "bad",
+                "Gateway health",
+                "OK" if gateway_ok else "Bad",
+                "Gateway /healthz is OK." if gateway_ok else "Gateway /healthz did not report status=ok.",
+                "The gateway health endpoint is the liveness signal for the CPA serving path.",
+            )
+        )
+
+    for title, prefixes, badge in (
+        ("Auth files API", ("auth-files:",), "Auth"),
+        ("Usage API", ("usage:",), "Usage"),
+        ("Routing config API", ("routing:", "config:"), "Config"),
+        ("Usage statistics API", ("usage-stats:",), "Usage stats"),
+    ):
+        error = diagnostic_error(endpoint_errors, prefixes)
+        if not error and source == "unavailable":
+            items.append(
+                diagnostic_item(
+                    "unknown",
+                    title,
+                    "Unknown",
+                    "Waiting for the first successful sample.",
+                    "No successful CPA snapshot has been built yet.",
+                )
+            )
+            continue
+        items.append(
+            diagnostic_item(
+                "warn" if error and title in {"Routing config API", "Usage statistics API"} else ("bad" if error else "good"),
+                title,
+                "Warn" if error and title in {"Routing config API", "Usage statistics API"} else ("Bad" if error else "OK"),
+                "Endpoint returned cached or fallback data." if error else "Endpoint sampled successfully.",
+                error or "The latest refresh did not report an endpoint error.",
+            )
+        )
+
+    if source == "unavailable":
+        items.append(
+            diagnostic_item(
+                "unknown",
+                "CPA usage statistics",
+                "Unknown",
+                "Usage statistics state is unknown.",
+                "A successful usage-statistics API sample is required before this can be classified.",
+            )
+        )
+    elif usage_stats_enabled:
+        items.append(
+            diagnostic_item(
+                "good",
+                "CPA usage statistics",
+                "On",
+                "Usage statistics are enabled.",
+                "Usage totals, hourly/day buckets, model breakdown, and pool load can be populated.",
+            )
+        )
+    else:
+        items.append(
+            diagnostic_item(
+                "warn",
+                "CPA usage statistics",
+                "Off",
+                "Usage statistics are disabled.",
+                "Quota and pool membership can still render, but usage totals and charts may stay empty.",
+            )
+        )
+
+    quota_status = str((quota_payload or {}).get("status") or "disabled").strip() or "disabled"
+    eligible_count = safe_int((quota_payload or {}).get("eligibleCount"))
+    fresh_count = safe_int((quota_payload or {}).get("freshCount"))
+    sampled_count = safe_int((quota_payload or {}).get("sampledCount"))
+    attempt_error = str((quota_payload or {}).get("attemptError") or "").strip()
+    if eligible_count <= 0 or quota_status == "disabled":
+        quota_tone = "unknown"
+        quota_badge = "Unknown"
+        quota_summary = "Direct quota sampling has no eligible accounts."
+        quota_detail = "No eligible Codex auth files were available; 5h and weekly windows may stay Unknown."
+    elif quota_status == "live":
+        quota_tone = "good"
+        quota_badge = "Live"
+        quota_summary = f"{fresh_count}/{eligible_count} direct quota samples are fresh."
+        quota_detail = "Direct Codex usage sampling can populate account quota windows and reset times."
+    elif quota_status == "degraded":
+        quota_tone = "bad"
+        quota_badge = "Bad"
+        quota_summary = "Direct quota sampling is degraded."
+        quota_detail = attempt_error or "A full sampling cycle completed without a fresh direct quota value."
+    elif quota_status == "warming":
+        quota_tone = "unknown"
+        quota_badge = "Warming"
+        quota_summary = f"{sampled_count}/{eligible_count} direct quota samples are available."
+        quota_detail = "The sampler has not completed its first cycle yet; Unknown values may appear later."
+    else:
+        quota_tone = "warn"
+        quota_badge = quota_status.title()
+        quota_summary = f"{fresh_count}/{eligible_count} direct quota samples are fresh."
+        quota_detail = attempt_error or "Some direct quota values are cached, stale, or not sampled yet."
+    items.append(
+        diagnostic_item(
+            quota_tone,
+            "Direct quota sampling",
+            quota_badge,
+            quota_summary,
+            quota_detail,
+        )
+    )
+
+    counts = diagnostic_counts(items)
+    return {
+        "title": "Diagnostics",
+        "summary": build_diagnostics_summary(items),
+        "metrics": [
+            {"label": "OK", "value": str(counts["good"]), "detail": "usable data sources"},
+            {"label": "Warn", "value": str(counts["warn"]), "detail": "degraded but usable"},
+            {"label": "Bad", "value": str(counts["bad"]), "detail": "requires attention"},
+            {"label": "Unknown", "value": str(counts["unknown"]), "detail": "waiting for data"},
+        ],
+        "items": items,
+        "footnote": "Diagnostics explain monitor data-source state only; they do not expose auth secrets or change CPA routing.",
+    }
+
+
 def is_dashboard_auth_file(auth_file):
     provider = normalize_key((auth_file or {}).get("provider") or (auth_file or {}).get("type"))
     if provider and provider != "unknown":
@@ -1749,6 +1957,15 @@ def build_dashboard_snapshot(
     if quota_status:
         status_text += " " + quota_status
 
+    diagnostics = build_diagnostics_section(
+        source=source,
+        source_text=source_text,
+        status_text=status_text,
+        gateway_ok=gateway_ok,
+        endpoint_errors=endpoint_errors,
+        quota_payload=quota_payload,
+        usage_stats_enabled=usage_stats_enabled,
+    )
     monitor_alert_items = build_monitor_alert_items(
         source=source,
         source_text=source_text,
@@ -1778,6 +1995,7 @@ def build_dashboard_snapshot(
         "available": True,
         "source": source,
         "sourceText": source_text,
+        "gatewayOk": gateway_ok,
         "sampledAt": iso_timestamp(sampled_at),
         "sampledAtText": display_timestamp(sampled_at),
         "statusText": status_text,
@@ -1821,8 +2039,10 @@ def build_dashboard_snapshot(
             },
             "resets": reset_schedule,
             "traffic": usage_statistics,
+            "diagnostics": diagnostics,
             "alerts": alerts,
         },
+        "diagnostics": diagnostics,
     }
 
 
@@ -1841,10 +2061,20 @@ def build_unavailable_snapshot(error_text):
             }
         ]
     )
+    diagnostics = build_diagnostics_section(
+        source="unavailable",
+        source_text="No CPA snapshot yet",
+        status_text=message,
+        gateway_ok=False,
+        endpoint_errors=[message],
+        quota_payload={"status": "disabled", "eligibleCount": 0, "freshCount": 0, "sampledCount": 0},
+        usage_stats_enabled=False,
+    )
     return {
         "available": False,
         "source": "unavailable",
         "sourceText": "No CPA snapshot yet",
+        "gatewayOk": False,
         "sampledAt": iso_timestamp(sampled_at),
         "sampledAtText": "Waiting for first successful sample",
         "statusText": message,
@@ -1897,6 +2127,8 @@ def build_unavailable_snapshot(error_text):
                 models=[],
                 footnote="Usage totals appear after CPA reports usage.",
             ),
+            "diagnostics": diagnostics,
             "alerts": alerts,
         },
+        "diagnostics": diagnostics,
     }

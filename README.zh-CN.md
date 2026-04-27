@@ -13,10 +13,19 @@
 - `Trends`：展示最近 `6h` 的 SQLite 历史，用来计算 burn rate、预计耗尽时间，并可导入 benchmark 摘要
 - `Usage`：来自 `CLIProxyAPI` usage statistics 的请求/token 总量、小时/日期 bucket、model breakdown 和账号分摊
 - `Audit`：从历史快照 diff 出最近账号池、套餐、状态、quota window 和 benchmark 摘要变化
+- `Diagnostics`：展示 gateway、CPA management API、direct quota sampling、SQLite history 和 benchmark import 的数据源健康状态
 - `Alerts`：只保留硬 auth 故障、没有明确 reset 的硬 quota exhausted、以及 monitor / 数据源降级；有 reset 的 usage-limit cooldown 只留在 `Pool` / `Resets` 展示，不把账号卡片标红
 - `Status`：gateway 连通性，以及当前 CPA 快照/刷新状态
 - `Fast`：当前 CPA fast override 状态（`On`、`Off`、`Inherit` 或 `Unknown`），显示在 Pool 指标里
 - `适配设备`：桌面浏览器、手机浏览器、e-ink 等小屏或慢刷新的浏览器
+
+机器可读接口：
+
+- `/api/status`：完整 dashboard snapshot
+- `/api/recommendations`：给 agent wrapper 使用的 `Best` / `Usable` / `Avoid` 账号推荐
+- `/api/diagnostics`：不包含 auth secret 内容的数据源诊断
+- `/api/alerts`：适合简单 health check 的告警 payload
+- `/metrics`：Prometheus text metrics，包含容量、推荐数量、告警、source 和 gateway health
 
 ## 快速入口
 

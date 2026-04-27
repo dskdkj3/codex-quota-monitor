@@ -1,7 +1,7 @@
 var BOOTSTRAP = window.CODEX_QUOTA_MONITOR_BOOTSTRAP || {};
 var INITIAL_SNAPSHOT = BOOTSTRAP.initialSnapshot || {};
 var REFRESH_MS = BOOTSTRAP.refreshMs || 15000;
-var TAB_NAMES = ["pool", "resets", "trends", "traffic", "audit", "alerts"];
+var TAB_NAMES = ["pool", "resets", "trends", "traffic", "audit", "diagnostics", "alerts"];
 var ACTIVE_TAB_NAME = null;
 var LAST_TAB_SIGNATURES = {
   pool: null,
@@ -9,6 +9,7 @@ var LAST_TAB_SIGNATURES = {
   trends: null,
   traffic: null,
   audit: null,
+  diagnostics: null,
   alerts: null
 };
 var SUMMARY_CARD_VARIANTS = {
@@ -598,6 +599,15 @@ function renderAuditTab(tabData) {
   renderListItems("audit-items", safeTab.items || [], "No audit events yet.");
 }
 
+function renderDiagnosticsTab(tabData) {
+  var safeTab = tabData || {};
+  setText("tab-title-diagnostics", safeTab.title, "Diagnostics");
+  setText("tab-summary-diagnostics", safeTab.summary, "");
+  setText("tab-footnote-diagnostics", safeTab.footnote, "");
+  renderMetricCards("diagnostics-metrics", safeTab.metrics || []);
+  renderListItems("diagnostics-items", safeTab.items || [], "No diagnostic items yet.");
+}
+
 function renderTabIfChanged(name, tabData, renderFn) {
   var signature = tabSignature(tabData);
   if (LAST_TAB_SIGNATURES[name] === signature) {
@@ -642,6 +652,7 @@ function renderSnapshot(snapshot) {
   renderTabIfChanged("trends", tabs.trends, renderTrendsTab);
   renderTabIfChanged("traffic", tabs.traffic, renderTrafficTab);
   renderTabIfChanged("audit", tabs.audit, renderAuditTab);
+  renderTabIfChanged("diagnostics", tabs.diagnostics, renderDiagnosticsTab);
   renderTabIfChanged("alerts", tabs.alerts, renderAlertsTab);
 }
 

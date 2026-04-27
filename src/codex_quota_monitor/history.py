@@ -375,6 +375,118 @@ def build_alert_api(snapshot):
     }
 
 
+def diagnostics_item(tone, title, badge, summary, detail, note=""):
+    return {
+        "tone": tone,
+        "title": title,
+        "badge": badge,
+        "summary": summary,
+        "detail": trim_text(detail, limit=220),
+        "note": note,
+    }
+
+
+def diagnostics_counts(items):
+    counts = {"good": 0, "warn": 0, "bad": 0, "unknown": 0}
+    for item in items or []:
+        tone = item.get("tone")
+        if tone in counts:
+            counts[tone] += 1
+    return counts
+
+
+def diagnostics_summary(items):
+    counts = diagnostics_counts(items)
+    active = counts["warn"] + counts["bad"] + counts["unknown"]
+    if active == 0:
+        return "All monitor data sources are usable."
+    parts = []
+    if counts["bad"]:
+        parts.append(count_label(counts["bad"], "bad source"))
+    if counts["warn"]:
+        parts.append(count_label(counts["warn"], "warning"))
+    if counts["unknown"]:
+        parts.append(count_label(counts["unknown"], "unknown"))
+    return " · ".join(parts)
+
+
+def enhance_diagnostics(snapshot, *, history_store, benchmark):
+    diagnostics = dict((snapshot or {}).get("diagnostics") or {})
+    items = list(diagnostics.get("items") or [])
+
+    if history_store is None:
+        items.append(
+            diagnostics_item(
+                "unknown",
+                "SQLite history",
+                "Off",
+                "SQLite history is disabled.",
+                "Trends, ETA, and Audit history need --state-db or services.codexQuotaMonitor.stateDb.",
+            )
+        )
+    else:
+        items.append(
+            diagnostics_item(
+                "good",
+                "SQLite history",
+                "On",
+                "SQLite history is enabled.",
+                f"Writing to {history_store.db_path}; retaining {history_store.retention_days} days.",
+            )
+        )
+
+    if benchmark.get("configured") and benchmark.get("available"):
+        items.append(
+            diagnostics_item(
+                "good",
+                "Benchmark summary",
+                "Loaded",
+                "Benchmark calibration summary is loaded.",
+                benchmark.get("path") or benchmark.get("summary") or "",
+            )
+        )
+    elif benchmark.get("configured"):
+        items.append(
+            diagnostics_item(
+                "warn",
+                "Benchmark summary",
+                "Warn",
+                "Benchmark summary is configured but unavailable.",
+                benchmark.get("error") or "The configured summary.json path could not be read.",
+            )
+        )
+    else:
+        items.append(
+            diagnostics_item(
+                "unknown",
+                "Benchmark summary",
+                "Off",
+                "No benchmark summary is configured.",
+                "Benchmark calibration is optional; pass --benchmark-summary when you want it displayed.",
+            )
+        )
+
+    counts = diagnostics_counts(items)
+    diagnostics.update(
+        {
+            "title": diagnostics.get("title") or "Diagnostics",
+            "summary": diagnostics_summary(items),
+            "metrics": [
+                {"label": "OK", "value": str(counts["good"]), "detail": "usable data sources"},
+                {"label": "Warn", "value": str(counts["warn"]), "detail": "degraded but usable"},
+                {"label": "Bad", "value": str(counts["bad"]), "detail": "requires attention"},
+                {"label": "Unknown", "value": str(counts["unknown"]), "detail": "waiting for data"},
+            ],
+            "items": items,
+            "footnote": diagnostics.get("footnote")
+            or "Diagnostics explain monitor data-source state only; they do not expose auth secrets or change CPA routing.",
+        }
+    )
+    snapshot["diagnostics"] = diagnostics
+    snapshot.setdefault("tabs", {})["diagnostics"] = diagnostics
+    return snapshot
+
+
 class HistoryStore:
     def __init__(self, db_path, *, write_seconds=60, retention_days=30):
         self.db_path = str(db_path)
@@ -1024,5 +1136,6 @@ def enhance_snapshot_with_history(
         )
         snapshot["tabs"]["trends"] = tabs["trends"]
         snapshot["tabs"]["audit"] = tabs["audit"]
+    snapshot = enhance_diagnostics(snapshot, history_store=history_store, benchmark=benchmark)
     snapshot["apiAlerts"] = build_alert_api(snapshot)
     return snapshot
