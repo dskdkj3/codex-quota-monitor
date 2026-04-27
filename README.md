@@ -91,6 +91,12 @@ If you want Codex, Claude, or another agent to wire this into an existing NixOS 
 
 ## Validation
 
+For Nix edits, use the flake formatter on the files you touched:
+
+```bash
+nix fmt -- <touched .nix files>
+```
+
 ```bash
 python -m unittest discover -s tests -v
 nix build .#codex-quota-monitor

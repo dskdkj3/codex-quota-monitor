@@ -16,12 +16,10 @@
       forAllSystems = lib.genAttrs systems;
       mkPkgs = system: import nixpkgs { inherit system; };
       mkPackage = system: (mkPkgs system).callPackage ./default.nix { };
-      mkApp =
-        package: program:
-        {
-          type = "app";
-          program = "${package}/bin/${program}";
-        };
+      mkApp = package: program: {
+        type = "app";
+        program = "${package}/bin/${program}";
+      };
     in
     {
       packages = forAllSystems (
@@ -61,6 +59,8 @@
           };
         }
       );
+
+      formatter = forAllSystems (system: (mkPkgs system).nixfmt);
 
       nixosModules = {
         default = import ./nixos-module.nix { inherit self; };

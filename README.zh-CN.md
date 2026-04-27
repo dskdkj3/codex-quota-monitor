@@ -91,6 +91,12 @@ codex-quota-benchmark \
 
 ## 验证
 
+改 `.nix` 文件后，用 flake 声明的 formatter 格式化本次触碰的文件：
+
+```bash
+nix fmt -- <touched .nix files>
+```
+
 ```bash
 python -m unittest discover -s tests -v
 nix build .#codex-quota-monitor
