@@ -9,8 +9,8 @@
 ## 你能直接看到什么
 
 - `Pool`：`5h` / `weekly` 已知总容量（以 Plus 为单位展示），其中 Team 按 `1:1` 计入、Prolite 按 `10:1` 计入，其它非 Plus 账号仍可见但不影响总量；账号 weekly 已耗尽时，对总 `5h` 容量贡献为 `0`
-- `Resets`：按从近到远排序展示 `5h` / `weekly` 的 reset 时间，并用紧凑的北京时间显示目标时刻
-- `Trends`：基于 SQLite 历史计算 burn rate、预计耗尽时间，并可导入 benchmark 摘要
+- `Resets`：按从近到远排序展示 `5h` / `weekly` 的 reset 时间，并用紧凑的北京时间显示目标时刻；当 weekly 已耗尽时，`5h` 行会显示真正恢复可用性的 weekly reset
+- `Trends`：展示最近 `6h` 的 SQLite 历史，用来计算 burn rate、预计耗尽时间，并可导入 benchmark 摘要
 - `Usage`：来自 `CLIProxyAPI` usage statistics 的请求/token 总量、小时/日期 bucket、model breakdown 和账号分摊
 - `Audit`：从历史快照 diff 出最近账号池、套餐、状态、quota window 和 benchmark 摘要变化
 - `Alerts`：只保留硬 auth 故障、没有明确 reset 的硬 quota exhausted、以及 monitor / 数据源降级；有 reset 的 usage-limit cooldown 只留在 `Pool` / `Resets` 展示，不把账号卡片标红
@@ -38,7 +38,7 @@ nix run .#codex-quota-monitor -- \
 
 默认监听在 `127.0.0.1:4515`。如果你要让手机或 e-ink 通过局域网访问，需要显式传 `--host 0.0.0.0`，并且有意识地开放端口。
 默认会用 `weekly 剩余 * 4.0` 约束总 `5h` 容量，避免 weekly 剩余额很低的账号把 `5h` 池估得过高。传 `--weekly-to-five-hour-multiplier <数字>` 可以覆盖这个倍率；传 `--weekly-to-five-hour-multiplier off` / `none` 可以关闭这个 cap。Benchmark 报告会给一个保守推荐值。
-直接 `nix run` 默认不写 SQLite 历史；需要 Trends / ETA / Audit 时传 `--state-db /path/to/history.sqlite3`。NixOS module 默认会把历史写到 `/var/lib/codex-quota-monitor/history.sqlite3`。
+直接 `nix run` 默认不写 SQLite 历史；需要 Trends / ETA / Audit 时传 `--state-db /path/to/history.sqlite3`。NixOS module 默认会把历史写到 `/var/lib/codex-quota-monitor/history.sqlite3`。Trends 标签页展示最近 `6h` 的历史样本。
 
 ### 用 Python 运行
 

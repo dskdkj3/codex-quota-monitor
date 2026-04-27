@@ -255,9 +255,13 @@ function renderQuotaLines(windows, compact) {
       : "";
     var noteHtml = "";
     var note = text(windowData.note, "");
-    var resetText = text(windowData.remainingText, "");
-    if (resetText && text(windowData.beijingTimeText, "")) {
-      resetText = resetText + " / " + text(windowData.beijingTimeText, "");
+    var resetText = text(windowData.displayRemainingText, text(windowData.remainingText, ""));
+    var resetTimeText = text(windowData.displayBeijingTimeText, text(windowData.beijingTimeText, ""));
+    if (resetText && resetTimeText) {
+      resetText = resetText + " / " + resetTimeText;
+    }
+    if (resetText && text(windowData.displayResetLabel, "")) {
+      resetText = text(windowData.displayResetLabel, "") + " " + resetText;
     }
     var resetHtml = resetText ? '<div class="quota-reset">' + escapeHtml(resetText) + "</div>" : "";
     if (!compact && shouldShowWindowNote(windowData)) {

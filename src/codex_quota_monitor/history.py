@@ -36,6 +36,9 @@ AUDIT_DISABLED_TAB = {
 }
 
 WINDOW_LABELS = {"5h": "5h", "week": "Weekly"}
+TREND_HISTORY_HOURS = 6
+TREND_MAX_POINTS = 24
+TREND_ROW_LIMIT = TREND_HISTORY_HOURS * 60 * 60
 
 
 def is_disabled_path(value):
@@ -79,6 +82,21 @@ def format_duration_hours(hours):
     if hours_part:
         return f"{hours_part}h {minutes}min"
     return f"{minutes}min"
+
+
+def downsample_rows(rows, max_points):
+    if len(rows) <= max_points:
+        return list(rows)
+    if max_points <= 1:
+        return [rows[-1]]
+
+    last_index = len(rows) - 1
+    selected_indexes = []
+    for point_index in range(max_points):
+        index = int(round((point_index * last_index) / float(max_points - 1)))
+        if not selected_indexes or selected_indexes[-1] != index:
+            selected_indexes.append(index)
+    return [rows[index] for index in selected_indexes]
 
 
 def window_by_id(account, window_id):
@@ -860,11 +878,15 @@ class HistoryStore:
         )
         return {
             "title": "Trends & ETA",
-            "summary": "SQLite-backed burn rate and exhaustion estimates.",
+            "summary": f"SQLite-backed burn rate and exhaustion estimates over the latest {TREND_HISTORY_HOURS}h.",
             "metrics": metrics,
             "windows": windows,
             "benchmark": benchmark,
-            "footnote": "Burn rate uses the latest continuous samples with stable tracked capacity and unknown counts; reset or pool changes cut the segment.",
+            "footnote": (
+                f"Trend points show the latest {TREND_HISTORY_HOURS}h of stored samples, downsampled to "
+                f"{TREND_MAX_POINTS} points. Burn rate uses the latest continuous samples with stable "
+                "tracked capacity and unknown counts; reset or pool changes cut the segment."
+            ),
         }
 
     def _trend_for_window(self, conn, window_id):
@@ -876,9 +898,9 @@ class HistoryStore:
             JOIN snapshots s ON s.id = cw.snapshot_id
             WHERE cw.window_id = ?
             ORDER BY s.sampled_at DESC, s.id DESC
-            LIMIT 96
+            LIMIT ?
             """,
-            (window_id,),
+            (window_id, TREND_ROW_LIMIT),
         ).fetchall()
         label = WINDOW_LABELS.get(window_id, window_id)
         if not rows:
@@ -897,13 +919,20 @@ class HistoryStore:
         latest = rows[0]
         latest_time = parse_timestamp(latest["sampled_at"]) or now_local()
         latest_units = optional_float(latest["known_units"])
+        horizon_seconds = TREND_HISTORY_HOURS * 60 * 60
+        horizon_rows = []
+        for row in rows:
+            row_time = parse_timestamp(row["sampled_at"]) or latest_time
+            if row_time <= latest_time and (latest_time - row_time).total_seconds() <= horizon_seconds:
+                horizon_rows.append(row)
+        rows = horizon_rows
         candidate = None
         for row in rows[1:]:
             row_time = parse_timestamp(row["sampled_at"])
             row_units = optional_float(row["known_units"])
             if row_time is None or row_units is None or latest_units is None:
                 break
-            if (latest_time - row_time).total_seconds() > 24 * 60 * 60:
+            if (latest_time - row_time).total_seconds() > horizon_seconds:
                 break
             if optional_float(row["tracked_units"]) != optional_float(latest["tracked_units"]):
                 break
@@ -926,7 +955,7 @@ class HistoryStore:
                 else:
                     summary = "No active burn in the comparable sample segment."
         points = []
-        for row in reversed(rows[:12]):
+        for row in downsample_rows(list(reversed(rows)), TREND_MAX_POINTS):
             row_time = parse_timestamp(row["sampled_at"]) or now_local()
             points.append(
                 {

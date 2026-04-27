@@ -228,6 +228,31 @@ class HistoryFeatureTests(unittest.TestCase):
         audit_summaries = [item["summary"] for item in third["tabs"]["audit"]["items"]]
         self.assertTrue(any("5h exhausted" in summary for summary in audit_summaries))
 
+    def test_sqlite_trends_show_latest_six_hours_downsampled(self):
+        start = dt.datetime(2026, 4, 20, 12, 0, tzinfo=dt.timezone.utc).astimezone()
+        snapshot = None
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = MODULE.HistoryStore(pathlib.Path(temp_dir) / "history.sqlite3", write_seconds=1, retention_days=30)
+            for index in range(29):
+                snapshot = MODULE.enhance_snapshot_with_history(
+                    build_history_dashboard(
+                        sampled_at=start + dt.timedelta(minutes=15 * index),
+                        five_hour_percent=100 - index,
+                    ),
+                    history_store=store,
+                    weekly_to_five_hour_multiplier=4.0,
+                )
+
+        trends = snapshot["tabs"]["trends"]
+        window = trends["windows"][0]
+        self.assertIn("latest 6h", trends["summary"])
+        self.assertIn("downsampled to 24 points", trends["footnote"])
+        self.assertEqual(len(window["points"]), 24)
+        self.assertEqual(window["points"][0]["valueText"], "0.96 Plus")
+        self.assertEqual(window["points"][-1]["valueText"], "0.72 Plus")
+        self.assertEqual(window["burnText"], "0.04 Plus/h")
+        self.assertIn("6h 0min", window["summary"])
+
     def test_threshold_alerts_and_api_alert_payload_are_machine_readable(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 0, tzinfo=dt.timezone.utc).astimezone()
         snapshot = MODULE.enhance_snapshot_with_history(
@@ -936,6 +961,8 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertNotIn("excluded", prolite_account["windows"][0]["note"])
 
     def test_build_dashboard_snapshot_removes_five_hour_capacity_when_weekly_is_exhausted(self):
+        five_hour_reset = dt.datetime(2026, 4, 24, 20, 0, tzinfo=dt.timezone.utc).astimezone()
+        weekly_reset = dt.datetime(2026, 4, 27, 9, 0, tzinfo=dt.timezone.utc).astimezone()
         snapshot = self.build_minimal_snapshot(
             auth_files=[
                 {
@@ -951,8 +978,8 @@ class DashboardSnapshotTests(unittest.TestCase):
                     "sampledAt": dt.datetime(2026, 4, 24, 15, 29, 45, tzinfo=dt.timezone.utc).astimezone(),
                     "planType": "plus",
                     "windows": {
-                        "5h": {"percent": 100},
-                        "week": {"percent": 0},
+                        "5h": {"percent": 100, "resetAt": five_hour_reset},
+                        "week": {"percent": 0, "resetAt": weekly_reset},
                     },
                     "lastError": None,
                     "lastErrorAt": None,
@@ -968,6 +995,17 @@ class DashboardSnapshotTests(unittest.TestCase):
         account = snapshot["tabs"]["pool"]["accounts"][0]
         self.assertEqual(account["windows"][0]["valueText"], "100%")
         self.assertEqual(account["windows"][1]["valueText"], "0%")
+        self.assertEqual(account["windows"][0]["resetAt"], five_hour_reset.isoformat(timespec="seconds"))
+        self.assertEqual(account["windows"][0]["displayResetAt"], account["windows"][1]["resetAt"])
+        self.assertEqual(account["windows"][0]["displayResetSource"], "week")
+        self.assertEqual(account["windows"][0]["displayResetLabel"], "Weekly reset")
+        self.assertEqual(account["windows"][0]["displayRemainingText"], account["windows"][1]["remainingText"])
+        self.assertIn("5h reset display uses the weekly reset", account["windows"][0]["note"])
+        five_hour_reset_row = snapshot["tabs"]["resets"]["columns"][0]["items"][0]
+        self.assertEqual(five_hour_reset_row["resetAt"], account["windows"][1]["resetAt"])
+        self.assertEqual(five_hour_reset_row["remainingText"], account["windows"][1]["remainingText"])
+        self.assertEqual(five_hour_reset_row["displayResetSource"], "week")
+        self.assertIn("weekly reset", five_hour_reset_row["meta"])
 
     def test_build_dashboard_snapshot_caps_five_hour_capacity_from_weekly_multiplier(self):
         snapshot = self.build_minimal_snapshot(
@@ -1191,7 +1229,9 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(five_hour_reset_accounts, ["account-slot", "account-slot"])
         enterprise_reset = next(row for row in snapshot["tabs"]["resets"]["columns"][0]["items"] if row["account"] == "account-slot")
         self.assertEqual(enterprise_reset["valueText"], "0%")
-        self.assertEqual(enterprise_reset["beijingTimeText"], "04-21 00:00")
+        self.assertEqual(enterprise_reset["beijingTimeText"], "04-24 08:00")
+        self.assertEqual(enterprise_reset["displayResetSource"], "week")
+        self.assertIn("weekly reset", enterprise_reset["meta"])
 
     def test_build_dashboard_snapshot_keeps_hard_direct_exhaustion_in_alerts(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()

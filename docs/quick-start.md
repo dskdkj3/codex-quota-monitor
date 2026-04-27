@@ -38,7 +38,7 @@ nix run .#codex-quota-monitor -- \
 
 By default, total `5h` capacity is capped by `weekly remaining * 4.0`. Use `--weekly-to-five-hour-multiplier <number>` to override it, or `--weekly-to-five-hour-multiplier off` / `none` to disable the cap.
 
-Direct `nix run` keeps SQLite history disabled by default. Add a writable state DB when you want Trends, ETA, and Audit history:
+Direct `nix run` keeps SQLite history disabled by default. Add a writable state DB when you want Trends, ETA, and Audit history; the Trends tab shows the latest 6h of stored samples:
 
 ```bash
 nix run .#codex-quota-monitor -- \

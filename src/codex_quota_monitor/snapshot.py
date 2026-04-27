@@ -831,6 +831,36 @@ def build_window_state(
     }
 
 
+def is_exhausted_window(window):
+    if not isinstance(window, dict):
+        return False
+    if window.get("state") == "exhausted":
+        return True
+    percent = window.get("percent")
+    return isinstance(percent, (int, float)) and percent <= 0
+
+
+def apply_weekly_exhausted_reset_display(windows):
+    five_hour = next((item for item in windows if item.get("id") == "5h"), None)
+    weekly = next((item for item in windows if item.get("id") == "week"), None)
+    if not five_hour or not weekly:
+        return windows
+    if not is_exhausted_window(weekly) or not window_has_reset_schedule(weekly):
+        return windows
+
+    five_hour["displayResetAt"] = weekly.get("resetAt")
+    five_hour["displayResetsInSeconds"] = weekly.get("resetsInSeconds")
+    five_hour["displayRemainingText"] = weekly.get("remainingText") or "Unknown"
+    five_hour["displayBeijingTimeText"] = weekly.get("beijingTimeText") or "Unknown"
+    five_hour["displayResetSource"] = "week"
+    five_hour["displayResetLabel"] = "Weekly reset"
+    five_hour["note"] = append_window_note(
+        five_hour.get("note"),
+        "Weekly quota is exhausted; 5h reset display uses the weekly reset.",
+    )
+    return windows
+
+
 def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time, usage_totals, quota_sample, quota_cycle_seconds):
     key = auth_key(auth_file)
     label = auth_label(auth_file, usage_entry)
@@ -890,6 +920,7 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
         )
         for definition in WINDOW_DEFINITIONS
     ]
+    windows = apply_weekly_exhausted_reset_display(windows)
 
     if not message_text:
         message_text = quota_account_note(quota_sample, reference_time, quota_cycle_seconds)
@@ -1455,19 +1486,26 @@ def build_reset_rows(contexts, window_definition):
         if window is None:
             continue
 
-        resets_in_seconds = window.get("resetsInSeconds")
-        reset_at = window.get("resetAt")
+        display_reset_source = window.get("displayResetSource")
+        resets_in_seconds = window.get("displayResetsInSeconds")
+        if not isinstance(resets_in_seconds, int):
+            resets_in_seconds = window.get("resetsInSeconds")
+        reset_at = window.get("displayResetAt") or window.get("resetAt")
+        meta = f"{context['badge']} · slot {short_slot(context['key'])}"
+        if display_reset_source == "week":
+            meta += " · weekly reset"
         rows.append(
             {
                 "tone": context["tone"],
                 "state": window.get("state") or "unknown",
                 "account": context["title"],
-                "meta": f"{context['badge']} · slot {short_slot(context['key'])}",
-                "remainingText": window.get("remainingText") or "Unknown",
-                "beijingTimeText": window.get("beijingTimeText") or "Unknown",
+                "meta": meta,
+                "remainingText": window.get("displayRemainingText") or window.get("remainingText") or "Unknown",
+                "beijingTimeText": window.get("displayBeijingTimeText") or window.get("beijingTimeText") or "Unknown",
                 "valueText": window.get("valueText") or "Unknown",
                 "resetAt": reset_at,
                 "resetsInSeconds": resets_in_seconds,
+                "displayResetSource": display_reset_source,
             }
         )
 
