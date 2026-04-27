@@ -24,6 +24,8 @@ if str(SOURCE_ROOT) not in sys.path:
 
 import codex_quota_monitor as MODULE
 
+UNSET = object()
+
 
 class CliTests(unittest.TestCase):
     def test_parse_args_defaults_to_loopback(self):
@@ -32,6 +34,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(args.host, "127.0.0.1")
         self.assertEqual(args.port, 4515)
+        self.assertEqual(args.weekly_to_five_hour_multiplier, 6.0)
 
     def test_parse_args_prefers_new_env_names_but_accepts_legacy_aliases(self):
         with mock.patch.dict(
@@ -58,6 +61,37 @@ class CliTests(unittest.TestCase):
             args = MODULE.parse_args([])
 
         self.assertEqual(args.weekly_to_five_hour_multiplier, 3.5)
+
+    def test_parse_args_accepts_cli_weekly_to_five_hour_override(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            args = MODULE.parse_args(["--weekly-to-five-hour-multiplier", "4.25"])
+
+        self.assertEqual(args.weekly_to_five_hour_multiplier, 4.25)
+
+    def test_parse_args_accepts_weekly_to_five_hour_opt_out(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            args = MODULE.parse_args(["--weekly-to-five-hour-multiplier", "off"])
+
+        self.assertIsNone(args.weekly_to_five_hour_multiplier)
+
+        with mock.patch.dict(os.environ, {"CODEX_QUOTA_MONITOR_WEEKLY_TO_FIVE_HOUR_MULTIPLIER": "none"}, clear=True):
+            args = MODULE.parse_args([])
+
+        self.assertIsNone(args.weekly_to_five_hour_multiplier)
+
+
+class RuntimeTests(unittest.TestCase):
+    def test_cpa_monitor_defaults_weekly_to_five_hour_multiplier(self):
+        monitor = MODULE.CPAMonitor(
+            management_base_url="http://127.0.0.1:8318",
+            gateway_health_url="http://127.0.0.1:8317/healthz",
+            auth_dir="",
+            refresh_seconds=15,
+            logs_refresh_seconds=0,
+            timeout_seconds=5,
+        )
+
+        self.assertEqual(monitor.weekly_to_five_hour_multiplier, 6.0)
 
 
 class QuotaParsingTests(unittest.TestCase):
@@ -151,15 +185,15 @@ class QuotaSamplerTests(unittest.TestCase):
 
 
 class DashboardSnapshotTests(unittest.TestCase):
-    def build_minimal_snapshot(self, *, auth_files, usage_details, quota_samples=None, weekly_to_five_hour_multiplier=None):
+    def build_minimal_snapshot(self, *, auth_files, usage_details, quota_samples=None, weekly_to_five_hour_multiplier=UNSET):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
         total_tokens = sum(int((detail.get("tokens") or {}).get("total_tokens") or 0) for detail in usage_details)
         failure_count = sum(1 for detail in usage_details if detail.get("failed"))
 
-        return MODULE.build_dashboard_snapshot(
-            health_payload={"status": "ok"},
-            auth_files_payload={"files": auth_files},
-            usage_payload={
+        kwargs = {
+            "health_payload": {"status": "ok"},
+            "auth_files_payload": {"files": auth_files},
+            "usage_payload": {
                 "usage": {
                     "total_requests": len(usage_details),
                     "success_count": len(usage_details) - failure_count,
@@ -176,7 +210,7 @@ class DashboardSnapshotTests(unittest.TestCase):
                     },
                 }
             },
-            quota_payload={
+            "quota_payload": {
                 "status": "warming",
                 "eligibleCount": len(auth_files),
                 "sampledCount": 0,
@@ -189,13 +223,16 @@ class DashboardSnapshotTests(unittest.TestCase):
                 "attemptError": None,
                 "samples": quota_samples or {},
             },
-            routing_payload={"routing": {"strategy": "round-robin"}},
-            usage_stats_payload={"usage-statistics-enabled": True},
-            request_log_payload={"request-log": True},
-            logs_payload={"lines": []},
-            sampled_at=sampled_at,
-            weekly_to_five_hour_multiplier=weekly_to_five_hour_multiplier,
-        )
+            "routing_payload": {"routing": {"strategy": "round-robin"}},
+            "usage_stats_payload": {"usage-statistics-enabled": True},
+            "request_log_payload": {"request-log": True},
+            "logs_payload": {"lines": []},
+            "sampled_at": sampled_at,
+        }
+        if weekly_to_five_hour_multiplier is not UNSET:
+            kwargs["weekly_to_five_hour_multiplier"] = weekly_to_five_hour_multiplier
+
+        return MODULE.build_dashboard_snapshot(**kwargs)
 
     def test_build_dashboard_snapshot_hides_replaced_runtime_slot_with_same_source(self):
         snapshot = self.build_minimal_snapshot(
@@ -769,6 +806,71 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(five_hour["knownBarPercent"], 35)
         self.assertIn("Weekly-capped 1", five_hour["summary"])
         self.assertIn("weekly remaining times 3.50", snapshot["tabs"]["pool"]["footnote"])
+
+    def test_build_dashboard_snapshot_defaults_to_six_times_weekly_multiplier(self):
+        snapshot = self.build_minimal_snapshot(
+            auth_files=[
+                {
+                    "auth_index": "acct-plus",
+                    "label": "account-slot",
+                    "status": "active",
+                    "id_token": {"plan_type": "plus"},
+                }
+            ],
+            usage_details=[],
+            quota_samples={
+                "acct-plus": {
+                    "sampledAt": dt.datetime(2026, 4, 24, 15, 29, 45, tzinfo=dt.timezone.utc).astimezone(),
+                    "planType": "plus",
+                    "windows": {
+                        "5h": {"percent": 100},
+                        "week": {"percent": 10},
+                    },
+                    "lastError": None,
+                    "lastErrorAt": None,
+                }
+            },
+        )
+
+        five_hour = snapshot["tabs"]["pool"]["capacityWindows"][0]
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.60 Plus")
+        self.assertEqual(five_hour["knownUnitsText"], "0.60 Plus")
+        self.assertEqual(five_hour["knownBarPercent"], 60)
+        self.assertIn("Weekly-capped 1", five_hour["summary"])
+        self.assertIn("weekly remaining times 6.00", snapshot["tabs"]["pool"]["footnote"])
+
+    def test_build_dashboard_snapshot_allows_disabling_weekly_multiplier(self):
+        snapshot = self.build_minimal_snapshot(
+            auth_files=[
+                {
+                    "auth_index": "acct-plus",
+                    "label": "account-slot",
+                    "status": "active",
+                    "id_token": {"plan_type": "plus"},
+                }
+            ],
+            usage_details=[],
+            quota_samples={
+                "acct-plus": {
+                    "sampledAt": dt.datetime(2026, 4, 24, 15, 29, 45, tzinfo=dt.timezone.utc).astimezone(),
+                    "planType": "plus",
+                    "windows": {
+                        "5h": {"percent": 100},
+                        "week": {"percent": 10},
+                    },
+                    "lastError": None,
+                    "lastErrorAt": None,
+                }
+            },
+            weekly_to_five_hour_multiplier=None,
+        )
+
+        five_hour = snapshot["tabs"]["pool"]["capacityWindows"][0]
+        self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 1.00 Plus")
+        self.assertEqual(five_hour["knownUnitsText"], "1.00 Plus")
+        self.assertEqual(five_hour["knownBarPercent"], 100)
+        self.assertNotIn("Weekly-capped", five_hour["summary"])
+        self.assertIn("weekly exhaustion removes an account", snapshot["tabs"]["pool"]["footnote"])
 
     def test_build_dashboard_snapshot_exposes_inherit_and_unknown_fast_states(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()

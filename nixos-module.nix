@@ -14,6 +14,9 @@ let
     ;
   cfg = config.services.codexQuotaMonitor;
   defaultAccount = "codex-quota-monitor";
+  defaultWeeklyToFiveHourMultiplier = 6;
+  weeklyToFiveHourMultiplierArg =
+    if cfg.weeklyToFiveHourMultiplier == null then "off" else toString cfg.weeklyToFiveHourMultiplier;
 in
 {
   options.services.codexQuotaMonitor = {
@@ -81,8 +84,8 @@ in
 
     weeklyToFiveHourMultiplier = mkOption {
       type = types.nullOr types.number;
-      default = null;
-      description = "Optional cap for total 5h capacity: effective 5h percent is min(raw 5h, weekly percent times this multiplier).";
+      default = defaultWeeklyToFiveHourMultiplier;
+      description = "Cap for total 5h capacity: effective 5h percent is min(raw 5h, weekly percent times this multiplier). Set to null to disable the cap.";
     };
 
     openFirewall = mkOption {
@@ -139,8 +142,7 @@ in
           + "--gateway-health-url ${escapeShellArg cfg.gatewayHealthUrl} "
           + "--log-level ${escapeShellArg cfg.logLevel}"
           + optionalString (cfg.authDir != null) " --auth-dir ${escapeShellArg cfg.authDir}"
-          + optionalString (cfg.weeklyToFiveHourMultiplier != null)
-            " --weekly-to-five-hour-multiplier ${toString cfg.weeklyToFiveHourMultiplier}";
+          + " --weekly-to-five-hour-multiplier ${escapeShellArg weeklyToFiveHourMultiplierArg}";
         Restart = "on-failure";
         RestartSec = "5s";
         LockPersonality = true;

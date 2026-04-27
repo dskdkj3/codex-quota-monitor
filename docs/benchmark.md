@@ -65,6 +65,6 @@ By default the tool will:
 
 - Performance A/B compares baseline requests against requests sent with `service_tier = priority`.
 - Team-to-Plus ratio is computed from direct quota-window drops under matched workloads.
-- `Weekly-to-5h Cap` reports `5h_drop / weekly_drop` per Team, Plus, and optional Prolite account, plus a conservative `recommended_dashboard_multiplier`; pass that value to `codex-quota-monitor --weekly-to-five-hour-multiplier` if you want total 5h capacity capped by weekly remaining capacity.
+- `Weekly-to-5h Cap` reports `5h_drop / weekly_drop` per Team, Plus, and optional Prolite account, plus a conservative `recommended_dashboard_multiplier`; pass that value to `codex-quota-monitor --weekly-to-five-hour-multiplier` to override the default `6.0` cap.
 - If a quota window resets during a batch, that batch is marked invalid for ratio math instead of being silently averaged in.
 - If the Team account reaches `0%` remaining on either `5h` or `weekly`, quota benchmarking stops immediately and the report marks the ratio section incomplete.

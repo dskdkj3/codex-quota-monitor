@@ -4,6 +4,7 @@ import os
 from http.server import ThreadingHTTPServer
 
 from .runtime import CPAMonitor, MonitorRequestHandler
+from .snapshot import DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER
 
 
 def read_env(primary_name, legacy_name, fallback):
@@ -19,6 +20,8 @@ def read_env(primary_name, legacy_name, fallback):
 
 def optional_positive_float(value):
     if value in (None, ""):
+        return None
+    if isinstance(value, str) and value.strip().lower() in {"off", "none"}:
         return None
     try:
         number = float(value)
@@ -81,9 +84,16 @@ def parse_args(argv=None):
         "--weekly-to-five-hour-multiplier",
         type=optional_positive_float,
         default=optional_positive_float(
-            read_env("CODEX_QUOTA_MONITOR_WEEKLY_TO_FIVE_HOUR_MULTIPLIER", None, "")
+            read_env(
+                "CODEX_QUOTA_MONITOR_WEEKLY_TO_FIVE_HOUR_MULTIPLIER",
+                None,
+                str(DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER),
+            )
         ),
-        help="Optional cap for total 5h capacity: effective 5h percent is min(raw 5h, weekly percent * multiplier).",
+        help=(
+            "Cap total 5h capacity as min(raw 5h, weekly percent * multiplier). "
+            "Defaults to 6.0; use 'off' or 'none' to disable."
+        ),
     )
     parser.add_argument(
         "--log-level",

@@ -35,7 +35,7 @@ nix run .#codex-quota-monitor -- \
 ```
 
 The default bind is `127.0.0.1:4515`. If you want phone or e-ink access on the local network, pass `--host 0.0.0.0` and expose the port intentionally.
-If you have measured the relationship between weekly and 5h quota drops, pass `--weekly-to-five-hour-multiplier <number>` to cap total 5h capacity by weekly remaining capacity. The benchmark report includes a conservative recommended value.
+By default, total `5h` capacity is capped by `weekly remaining * 6.0`, so an account with low weekly quota cannot overstate the `5h` pool. Pass `--weekly-to-five-hour-multiplier <number>` to override that relationship, or `--weekly-to-five-hour-multiplier off` / `none` to disable the cap. The benchmark report includes a conservative recommended value.
 
 ### Run With Python
 

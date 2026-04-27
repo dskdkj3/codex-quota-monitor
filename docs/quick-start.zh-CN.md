@@ -34,6 +34,8 @@ nix run .#codex-quota-monitor -- \
   --auth-dir /path/to/auth-files
 ```
 
+默认会用 `weekly 剩余 * 6.0` 约束总 `5h` 容量。用 `--weekly-to-five-hour-multiplier <数字>` 可以覆盖倍率，用 `--weekly-to-five-hour-multiplier off` / `none` 可以关闭这个 cap。
+
 ## 用 Python 运行
 
 ```bash

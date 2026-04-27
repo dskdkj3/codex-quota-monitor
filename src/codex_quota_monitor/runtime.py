@@ -9,7 +9,11 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
 from .quota import QuotaSampler
-from .snapshot import build_dashboard_snapshot, build_unavailable_snapshot
+from .snapshot import (
+    DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER,
+    build_dashboard_snapshot,
+    build_unavailable_snapshot,
+)
 from .util import compact_error, count_label, join_url, now_local, safe_int
 from .version import USER_AGENT
 from .web import load_asset_payload, render_page
@@ -106,7 +110,7 @@ class CPAMonitor:
         refresh_seconds,
         logs_refresh_seconds,
         timeout_seconds,
-        weekly_to_five_hour_multiplier=None,
+        weekly_to_five_hour_multiplier=DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER,
     ):
         self.management_base_url = management_base_url.rstrip("/")
         self.gateway_health_url = gateway_health_url

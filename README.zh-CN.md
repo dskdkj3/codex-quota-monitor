@@ -35,7 +35,7 @@ nix run .#codex-quota-monitor -- \
 ```
 
 默认监听在 `127.0.0.1:4515`。如果你要让手机或 e-ink 通过局域网访问，需要显式传 `--host 0.0.0.0`，并且有意识地开放端口。
-如果你已经实测出 weekly 和 5h quota 下降之间的关系，可以传 `--weekly-to-five-hour-multiplier <数字>`，让总 `5h` 容量受 weekly 剩余额约束。Benchmark 报告会给一个保守推荐值。
+默认会用 `weekly 剩余 * 6.0` 约束总 `5h` 容量，避免 weekly 剩余额很低的账号把 `5h` 池估得过高。传 `--weekly-to-five-hour-multiplier <数字>` 可以覆盖这个倍率；传 `--weekly-to-five-hour-multiplier off` / `none` 可以关闭这个 cap。Benchmark 报告会给一个保守推荐值。
 
 ### 用 Python 运行
 

@@ -29,6 +29,10 @@ from .util import (
 )
 
 
+DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER = 6.0
+_DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER_SENTINEL = object()
+
+
 WINDOW_DEFINITIONS = (
     {
         "id": "5h",
@@ -280,6 +284,8 @@ def is_capacity_tracked_plan(plan_kind):
 def normalize_weekly_to_five_hour_multiplier(value):
     if value is None:
         return None
+    if isinstance(value, str) and value.strip().lower() in {"off", "none"}:
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -287,6 +293,12 @@ def normalize_weekly_to_five_hour_multiplier(value):
     if number <= 0:
         return None
     return number
+
+
+def resolve_weekly_to_five_hour_multiplier(value=_DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER_SENTINEL):
+    if value is _DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER_SENTINEL:
+        return DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER
+    return normalize_weekly_to_five_hour_multiplier(value)
 
 
 def short_slot(value):
@@ -1073,8 +1085,8 @@ def effective_capacity_percent(context, window_id, weekly_to_five_hour_multiplie
     return percent, False
 
 
-def build_capacity_windows(contexts, weekly_to_five_hour_multiplier=None):
-    weekly_to_five_hour_multiplier = normalize_weekly_to_five_hour_multiplier(weekly_to_five_hour_multiplier)
+def build_capacity_windows(contexts, weekly_to_five_hour_multiplier=_DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER_SENTINEL):
+    weekly_to_five_hour_multiplier = resolve_weekly_to_five_hour_multiplier(weekly_to_five_hour_multiplier)
     plus_total = sum(1 for context in contexts if is_plus_plan(context["planKind"]))
     tracked_contexts = [
         (context, capacity_plan_weight(context["planKind"]))
@@ -1417,15 +1429,16 @@ def build_dashboard_snapshot(
     sampled_at,
     endpoint_errors=None,
     source="live",
-    weekly_to_five_hour_multiplier=None,
+    weekly_to_five_hour_multiplier=_DEFAULT_WEEKLY_TO_FIVE_HOUR_MULTIPLIER_SENTINEL,
 ):
+    weekly_multiplier = resolve_weekly_to_five_hour_multiplier(weekly_to_five_hour_multiplier)
     auth_files = [auth_file for auth_file in ((auth_files_payload or {}).get("files") or []) if is_dashboard_auth_file(auth_file)]
     usage_index = build_usage_index(usage_payload)
     contexts, plan_counts = build_account_contexts(auth_files, usage_index, sampled_at, quota_payload)
     pool_accounts = build_pool_accounts(contexts)
     capacity_windows, _tracked_total = build_capacity_windows(
         contexts,
-        weekly_to_five_hour_multiplier=weekly_to_five_hour_multiplier,
+        weekly_to_five_hour_multiplier=weekly_multiplier,
     )
     traffic_items = build_traffic_distribution(contexts)
     reset_schedule = build_reset_schedule_section(contexts)
@@ -1480,7 +1493,6 @@ def build_dashboard_snapshot(
     fast_value = fast_mode["label"]
     if fast_value.startswith("Fast "):
         fast_value = fast_value[5:]
-    weekly_multiplier = normalize_weekly_to_five_hour_multiplier(weekly_to_five_hour_multiplier)
     if weekly_multiplier is None:
         capacity_policy = "weekly exhaustion removes an account from 5h total capacity."
     else:
