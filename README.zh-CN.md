@@ -17,6 +17,7 @@
 - `Alerts`：只保留硬 auth 故障、没有明确 reset 的硬 quota exhausted、以及 monitor / 数据源降级；有 reset 的 usage-limit cooldown 只留在 `Pool` / `Resets` 展示，不把账号卡片标红
 - `Status`：gateway 连通性，以及当前 CPA 快照/刷新状态
 - `Fast`：当前 CPA fast override 状态（`On`、`Off`、`Inherit` 或 `Unknown`），显示在 Pool 指标里
+- `Theme`：浅色/深色切换；首次跟随浏览器系统主题，手动点击后在当前浏览器记住选择
 - `适配设备`：桌面浏览器、手机浏览器、e-ink 等小屏或慢刷新的浏览器
 
 机器可读接口：

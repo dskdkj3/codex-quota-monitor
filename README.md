@@ -17,6 +17,7 @@ Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth p
 - `Alerts`: only hard auth failures, hard quota exhaustion without a scheduled reset, and monitor/source degradation; reset-scheduled usage-limit cooldowns stay visible in `Pool` / `Resets` without turning the account card red
 - `Status`: gateway reachability and refresh health for the current CPA snapshot
 - `Fast`: current CPA fast override state (`On`, `Off`, `Inherit`, or `Unknown`) in the Pool metrics
+- `Theme`: light/dark toggle that follows the browser color scheme until the current browser stores an explicit choice
 - `Target devices`: desktop, mobile, and small-screen browsers
 
 Machine-readable endpoints:

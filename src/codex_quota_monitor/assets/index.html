@@ -4,6 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>Codex Quota Monitor</title>
+    <script>
+      (function () {
+        try {
+          var theme = window.localStorage && window.localStorage.getItem("codex-quota-monitor-theme");
+          if (theme === "light" || theme === "dark") {
+            document.documentElement.setAttribute("data-theme", theme);
+          }
+        } catch (error) {}
+      }());
+    </script>
     <link rel="stylesheet" href="/monitor.css">
   </head>
   <body>
@@ -14,7 +24,13 @@
             <p class="hero-kicker">CLIProxyAPI · Codex OAuth Pool</p>
             <h1 class="hero-title">Codex Quota</h1>
           </div>
-          <p class="hero-subtitle">Quota-first status for desktop, mobile, and small-screen browsers.</p>
+          <div class="hero-actions">
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme" title="Switch color theme">
+              <span class="theme-toggle-icon" aria-hidden="true"></span>
+              <span class="theme-toggle-label" id="theme-toggle-label">Theme</span>
+            </button>
+            <p class="hero-subtitle">Quota-first status for desktop, mobile, and small-screen browsers.</p>
+          </div>
         </div>
         <div class="summary-grid" aria-label="Quota summary">
           <article class="summary-card summary-card-primary is-unknown" id="five-hour-card">

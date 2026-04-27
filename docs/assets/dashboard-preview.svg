@@ -4,6 +4,10 @@
 
   <text x="104" y="104" fill="#7a8490" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="20" font-weight="700">CLIPROXYAPI · CODEX OAUTH POOL</text>
   <text x="104" y="154" fill="#17212d" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="46" font-weight="800">Codex Quota</text>
+  <rect x="1180" y="74" width="116" height="36" rx="8" fill="#f9faf7" stroke="#d9e0d8"/>
+  <circle cx="1210" cy="92" r="9" fill="#5d6975"/>
+  <path d="M1210 83a9 9 0 0 1 0 18z" fill="#f9faf7"/>
+  <text x="1264" y="99" fill="#5d6975" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="15" font-weight="800" text-anchor="end">Dark</text>
   <text x="1296" y="128" fill="#5d6975" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="22" text-anchor="end">Quota-first status for desktop, mobile, and small-screen browsers.</text>
 
   <rect x="104" y="194" width="370" height="112" rx="10" fill="#e6f3ea" stroke="#d9e0d8"/>

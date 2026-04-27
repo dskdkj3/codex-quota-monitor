@@ -1,6 +1,7 @@
 var BOOTSTRAP = window.CODEX_QUOTA_MONITOR_BOOTSTRAP || {};
 var INITIAL_SNAPSHOT = BOOTSTRAP.initialSnapshot || {};
 var REFRESH_MS = BOOTSTRAP.refreshMs || 15000;
+var THEME_STORAGE_KEY = "codex-quota-monitor-theme";
 var TAB_NAMES = ["pool", "resets", "trends", "traffic", "audit", "diagnostics", "alerts"];
 var ACTIVE_TAB_NAME = null;
 var LAST_TAB_SIGNATURES = {
@@ -34,6 +35,82 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function readSavedTheme() {
+  try {
+    var value = window.localStorage && window.localStorage.getItem(THEME_STORAGE_KEY);
+    return value === "light" || value === "dark" ? value : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeSavedTheme(theme) {
+  try {
+    if (window.localStorage) {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    }
+  } catch (error) {}
+}
+
+function prefersDarkTheme() {
+  return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+}
+
+function currentTheme() {
+  var activeTheme = document.documentElement.getAttribute("data-theme");
+  if (activeTheme === "light" || activeTheme === "dark") {
+    return activeTheme;
+  }
+  return readSavedTheme() || (prefersDarkTheme() ? "dark" : "light");
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  writeSavedTheme(theme);
+  updateThemeToggle();
+}
+
+function updateThemeToggle() {
+  var button = document.getElementById("theme-toggle");
+  var label = document.getElementById("theme-toggle-label");
+  if (!button || !label) {
+    return;
+  }
+  var activeTheme = currentTheme();
+  var nextTheme = activeTheme === "dark" ? "light" : "dark";
+  var nextLabel = nextTheme === "dark" ? "Dark" : "Light";
+  var action = "Switch to " + nextTheme + " mode";
+  label.textContent = nextLabel;
+  button.setAttribute("aria-label", action);
+  button.setAttribute("title", action);
+  button.setAttribute("aria-pressed", activeTheme === "dark" ? "true" : "false");
+}
+
+function initThemeToggle() {
+  var button = document.getElementById("theme-toggle");
+  if (!button) {
+    return;
+  }
+  button.onclick = function () {
+    setTheme(currentTheme() === "dark" ? "light" : "dark");
+  };
+  updateThemeToggle();
+
+  if (window.matchMedia) {
+    var media = window.matchMedia("(prefers-color-scheme: dark)");
+    var handleMediaChange = function () {
+      if (!readSavedTheme()) {
+        updateThemeToggle();
+      }
+    };
+    if (media.addEventListener) {
+      media.addEventListener("change", handleMediaChange);
+    } else if (media.addListener) {
+      media.addListener(handleMediaChange);
+    }
+  }
 }
 
 function tabFromHash() {
@@ -685,6 +762,7 @@ window.onhashchange = function () {
   setActiveTab(tabFromHash(), false);
 };
 
+initThemeToggle();
 renderSnapshot(INITIAL_SNAPSHOT);
 setActiveTab(tabFromHash(), false);
 window.setInterval(refreshSnapshot, REFRESH_MS);
