@@ -36,7 +36,7 @@ nix run .#codex-quota-monitor -- \
   --auth-dir /path/to/auth-files
 ```
 
-By default, total `5h` capacity is capped by `weekly remaining * 6.0`. Use `--weekly-to-five-hour-multiplier <number>` to override it, or `--weekly-to-five-hour-multiplier off` / `none` to disable the cap.
+By default, total `5h` capacity is capped by `weekly remaining * 4.0`. Use `--weekly-to-five-hour-multiplier <number>` to override it, or `--weekly-to-five-hour-multiplier off` / `none` to disable the cap.
 
 ## Python
 

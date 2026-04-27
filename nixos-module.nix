@@ -14,7 +14,7 @@ let
     ;
   cfg = config.services.codexQuotaMonitor;
   defaultAccount = "codex-quota-monitor";
-  defaultWeeklyToFiveHourMultiplier = 6;
+  defaultWeeklyToFiveHourMultiplier = 4;
   weeklyToFiveHourMultiplierArg =
     if cfg.weeklyToFiveHourMultiplier == null then "off" else toString cfg.weeklyToFiveHourMultiplier;
 in

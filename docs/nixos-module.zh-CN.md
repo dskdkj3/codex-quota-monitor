@@ -52,6 +52,6 @@
 - 端口：`4515`
 - 防火墙：默认不放行
 - service 账号：`codex-quota-monitor`
-- weekly-to-5h multiplier：默认 `6.0`；设 `weeklyToFiveHourMultiplier = null` 可以关闭 cap。账号 weekly 已耗尽时仍会从总 `5h` 容量里移除
+- weekly-to-5h multiplier：默认 `4.0`；设 `weeklyToFiveHourMultiplier = null` 可以关闭 cap。账号 weekly 已耗尽时仍会从总 `5h` 容量里移除
 
 如果你要让手机或 e-ink 通过局域网访问，把 `listenAddress` 设成 `0.0.0.0`，并把 `openFirewall` 设成 `true`。

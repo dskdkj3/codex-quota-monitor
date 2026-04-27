@@ -65,6 +65,6 @@ codex-quota-benchmark \
 
 - 性能 A/B 比的是 baseline 请求和 `service_tier = priority` 请求。
 - Team 相对 Plus 的倍率，是用同负载下 direct quota window 的真实下降量反推出来的。
-- `Weekly-to-5h Cap` 会按 Team、Plus 和可选 Prolite 账号报告 `5h_drop / weekly_drop`，并给出保守的 `recommended_dashboard_multiplier`；把这个值传给 `codex-quota-monitor --weekly-to-five-hour-multiplier` 可以覆盖默认 `6.0` cap。
+- `Weekly-to-5h Cap` 会按 Team、Plus 和可选 Prolite 账号报告 `5h_drop / weekly_drop`，并给出保守的 `recommended_dashboard_multiplier`；把这个值传给 `codex-quota-monitor --weekly-to-five-hour-multiplier` 可以覆盖默认 `4.0` cap。
 - 如果某个 batch 跨过了 quota reset，那个 batch 会被标成无效，不会被偷偷并进平均值里。
 - 如果 Team 账号的 `5h` 或 `weekly` 任一窗口掉到 `0%`，quota benchmark 会立即停止，并在报告里把倍率部分标成不完整。
