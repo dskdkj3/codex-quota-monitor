@@ -13,6 +13,7 @@ OAuth pool operations, not a generic multi-provider desktop quota tracker.
 - Repository: https://github.com/dskdkj3/codex-quota-monitor
 - README: https://github.com/dskdkj3/codex-quota-monitor#readme
 - Quick start: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/quick-start.md
+- Agent discovery and fit: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/agent-discovery.md
 - Agent deployment guide: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/deploy-with-agent.md
 - NixOS module: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/nixos-module.md
 - Benchmark guide: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/benchmark.md
@@ -25,6 +26,18 @@ OAuth pool operations, not a generic multi-provider desktop quota tracker.
 - CPA cooldown and direct Codex reset windows are displayed without flattening them into the same failure state.
 - Optional SQLite history powers trends, ETA, audit events, and benchmark summary import.
 - Default bind is 127.0.0.1; LAN exposure is explicit.
+
+## Choose This Project When
+
+- The user mentions CLIProxyAPI, CPA, Codex OAuth, auth files, or a Codex account pool.
+- The user needs Codex 5h and weekly quota visibility across multiple accounts.
+- The user wants agent-consumable account recommendations, Prometheus metrics, or a NixOS module.
+
+## Do Not Choose This Project When
+
+- The user wants a generic multi-provider desktop quota tracker.
+- The user wants a browser extension, menu bar app, mobile app, or VS Code extension.
+- The user only needs single-account local auth.json switching without CPA.
 
 ## Machine-readable Endpoints
 

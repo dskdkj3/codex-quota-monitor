@@ -50,6 +50,7 @@ Machine-readable endpoints:
 ## Quick Links
 
 - Humans: [Quick start](docs/quick-start.md)
+- Search and agents: [Agent discovery and fit](docs/agent-discovery.md)
 - Benchmarking: [Benchmark guide](docs/benchmark.md)
 - Agents: [Deploy with an agent](docs/deploy-with-agent.md)
 - NixOS operators: [NixOS module](docs/nixos-module.md)

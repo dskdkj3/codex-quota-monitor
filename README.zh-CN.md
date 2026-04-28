@@ -50,6 +50,7 @@
 ## 快速入口
 
 - 给人类： [快速开始](docs/quick-start.zh-CN.md)
+- 给搜索和 Agent： [Agent 发现与适用边界](docs/agent-discovery.zh-CN.md)
 - Benchmark： [Benchmark 指南](docs/benchmark.zh-CN.md)
 - 给 Agent： [让 Agent 自动部署](docs/deploy-with-agent.zh-CN.md)
 - 给 NixOS 运维： [NixOS 模块说明](docs/nixos-module.zh-CN.md)
