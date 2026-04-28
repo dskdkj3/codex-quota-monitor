@@ -14,7 +14,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = pathlib.Path(
     os.environ.get("CODEX_QUOTA_MONITOR_ROOT")
-    or os.environ.get("CODEX_QUOTA_MONITOR_ROOT")
     or pathlib.Path(__file__).resolve().parents[1]
 )
 SOURCE_ROOT = ROOT if (ROOT / "codex_quota_monitor").is_dir() else ROOT / "src"

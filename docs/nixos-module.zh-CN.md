@@ -66,4 +66,4 @@
 - Benchmark 摘要：默认关闭；把 `benchmarkSummary` 指到 `codex-quota-benchmark` 的 `summary.json` 后会显示在 Trends 里
 - 阈值告警：默认关闭；设置 `alert*` 选项后会通过 `/api/alerts` 暴露
 
-如果你要让手机或 e-ink 通过局域网访问，把 `listenAddress` 设成 `0.0.0.0`，并把 `openFirewall` 设成 `true`。
+如果你要让手机或小屏浏览器通过局域网访问，把 `listenAddress` 设成 `0.0.0.0`，并把 `openFirewall` 设成 `true`。

@@ -42,7 +42,7 @@ Validation:
 
 ## LAN Prompt Variant
 
-Use this variant when the page must be reachable from a phone or e-ink on the local network:
+Use this variant when the page must be reachable from a phone or small-screen browser on the local network:
 
 ```text
 Same as above, but bind the dashboard to 0.0.0.0 and set openFirewall = true.
@@ -60,4 +60,4 @@ curl -fsS http://127.0.0.1:4515/api/status | jq '.summary'
 curl -fsS http://127.0.0.1:4515/api/alerts | jq '.'
 ```
 
-If LAN access is enabled, open `http://<host-lan-ip>:4515/` from a phone or e-ink and confirm the page renders without full-page reload flicker.
+If LAN access is enabled, open `http://<host-lan-ip>:4515/` from a phone or small-screen browser and confirm the page renders without full-page reload flicker.

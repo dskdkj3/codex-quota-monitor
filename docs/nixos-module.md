@@ -66,4 +66,4 @@ The flake exports `nixosModules.default` and `nixosModules.codex-quota-monitor`.
 - Benchmark summary: disabled until `benchmarkSummary` points to a `codex-quota-benchmark` `summary.json`
 - Threshold alerts: disabled until an `alert*` option is set; they are exposed through `/api/alerts`
 
-If you want LAN access from a phone or e-ink, set `listenAddress = "0.0.0.0"` and `openFirewall = true`.
+If you want LAN access from a phone or small-screen browser, set `listenAddress = "0.0.0.0"` and `openFirewall = true`.

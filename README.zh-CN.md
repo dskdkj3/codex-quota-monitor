@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-一个面向 `CLIProxyAPI` 承载的 Codex OAuth 账号池的浏览器监控页。它优先回答三个问题：当前 `5h` / `weekly` 还剩多少以 Plus 单位表示的总容量、CPA usage statistics 和账号负载现在是什么样、有没有必须介入的问题。Team 容量会按和 Plus `1:1` 的口径计入这些总量；Prolite 按 `10:1` 计入。布局针对 PC 浏览器、手机浏览器和 e-ink 这类电子墨水屏都做了兼容。
+一个面向 `CLIProxyAPI` 承载的 Codex OAuth 账号池的浏览器监控页。它优先回答三个问题：当前 `5h` / `weekly` 还剩多少以 Plus 单位表示的总容量、CPA usage statistics 和账号负载现在是什么样、有没有必须介入的问题。Team 容量会按和 Plus `1:1` 的口径计入这些总量；Prolite 按 `10:1` 计入。布局针对 PC 浏览器、手机浏览器和小屏电子墨水浏览器都做了兼容。
 
 ![Codex Quota Monitor 预览图](docs/assets/dashboard-preview.svg)
 
@@ -18,7 +18,7 @@
 - `Status`：gateway 连通性，以及当前 CPA 快照/刷新状态
 - `Fast`：当前 CPA fast override 状态（`On`、`Off`、`Inherit` 或 `Unknown`），显示在 Pool 指标里
 - `Theme`：浅色/深色切换；首次跟随浏览器系统主题，手动点击后在当前浏览器记住选择
-- `适配设备`：桌面浏览器、手机浏览器、e-ink 等小屏或慢刷新的浏览器
+- `适配设备`：桌面浏览器、手机浏览器、小屏或慢刷新的浏览器
 
 机器可读接口：
 
@@ -46,7 +46,7 @@ nix run .#codex-quota-monitor -- \
   --auth-dir /path/to/auth-files
 ```
 
-默认监听在 `127.0.0.1:4515`。如果你要让手机或 e-ink 通过局域网访问，需要显式传 `--host 0.0.0.0`，并且有意识地开放端口。
+默认监听在 `127.0.0.1:4515`。如果你要让手机或小屏浏览器通过局域网访问，需要显式传 `--host 0.0.0.0`，并且有意识地开放端口。
 默认会用 `weekly 剩余 * 6.0` 约束总 `5h` 容量，避免 weekly 剩余额很低的账号把 `5h` 池估得过高。传 `--weekly-to-five-hour-multiplier <数字>` 可以覆盖这个倍率；传 `--weekly-to-five-hour-multiplier off` / `none` 可以关闭这个 cap。Benchmark 报告会给一个保守推荐值。
 直接 `nix run` 默认不写 SQLite 历史；需要 Trends / ETA / Audit 时传 `--state-db /path/to/history.sqlite3`。NixOS module 默认会把历史写到 `/var/lib/codex-quota-monitor/history.sqlite3`。Trends 标签页展示最近 `6h` 的历史样本。
 
