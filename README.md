@@ -2,9 +2,20 @@
 
 [简体中文](README.zh-CN.md)
 
-Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth pools. It gives a fast read of remaining 5h/weekly capacity in Plus units, CPA usage statistics, current pool load, and only the alerts that actually require intervention. Team capacity counts 1:1 with Plus in those totals; Prolite counts 10:1. The layout is tuned for desktop browsers, phone screens, and small e-ink browsers.
+Self-hosted quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth pools. It is built for operators who run multiple Codex auth files behind CPA and need a browser UI, machine-readable account recommendations, Prometheus metrics, and a NixOS module instead of a generic desktop usage tracker.
+
+It gives a fast read of remaining 5h/weekly capacity in Plus units, CPA usage statistics, current pool load, and only the alerts that actually require intervention. Team capacity counts 1:1 with Plus in those totals; Prolite counts 10:1. The layout is tuned for desktop browsers, phone screens, and small e-ink browsers.
+
+Website: <https://dskdkj3.github.io/codex-quota-monitor/>
 
 ![Codex Quota Monitor preview](docs/assets/dashboard-preview.svg)
+
+## Who It Is For
+
+- Operators of `CLIProxyAPI`-backed Codex OAuth account pools
+- Self-hosted and NixOS users who want a declarative service module
+- Agent wrapper authors who need `Best` / `Usable` / `Avoid` account recommendations
+- Small-team or personal infrastructure where loopback-first defaults and explicit LAN exposure matter
 
 ## At A Glance
 
@@ -19,6 +30,14 @@ Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth p
 - `Fast`: current CPA fast override state (`On`, `Off`, `Inherit`, or `Unknown`) in the Pool metrics
 - `Theme`: light/dark toggle that follows the browser color scheme until the current browser stores an explicit choice
 - `Target devices`: desktop, mobile, and small-screen browsers
+
+What makes it different from general AI quota trackers:
+
+- It models Codex OAuth pool operations, not only one user's local desktop app usage.
+- It reads CPA management state, CPA usage statistics, optional direct Codex quota windows, and optional SQLite history together.
+- It exposes `/api/recommendations` so agents can select healthier auth files without scraping the UI.
+- It ships as a Python app, Nix flake package/app, and reusable NixOS module.
+- It keeps the default bind at `127.0.0.1`; LAN access is an explicit operator choice.
 
 Machine-readable endpoints:
 

@@ -1,0 +1,52 @@
+# Codex Quota Monitor
+
+> Self-hosted quota and pool dashboard for CLIProxyAPI-backed Codex OAuth pools.
+
+Codex Quota Monitor is for operators who run multiple Codex auth files behind
+CLIProxyAPI and need browser visibility, account-health recommendations,
+Prometheus metrics, and a NixOS module. It is intentionally focused on Codex
+OAuth pool operations, not a generic multi-provider desktop quota tracker.
+
+## Canonical Links
+
+- Website: https://dskdkj3.github.io/codex-quota-monitor/
+- Repository: https://github.com/dskdkj3/codex-quota-monitor
+- README: https://github.com/dskdkj3/codex-quota-monitor#readme
+- Quick start: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/quick-start.md
+- Agent deployment guide: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/deploy-with-agent.md
+- NixOS module: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/nixos-module.md
+- Benchmark guide: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/benchmark.md
+
+## Core Capabilities
+
+- Browser dashboard for Pool, Resets, Trends, Usage, Audit, Diagnostics, and Alerts.
+- Plus-unit capacity aggregation for Codex 5h and weekly quota windows.
+- Team capacity counts 1:1 with Plus; Prolite counts 10:1.
+- CPA cooldown and direct Codex reset windows are displayed without flattening them into the same failure state.
+- Optional SQLite history powers trends, ETA, audit events, and benchmark summary import.
+- Default bind is 127.0.0.1; LAN exposure is explicit.
+
+## Machine-readable Endpoints
+
+- GET /api/status: full dashboard snapshot.
+- GET /api/recommendations: Best / Usable / Avoid account recommendations for wrappers and agents.
+- GET /api/diagnostics: data-source health without auth secret contents.
+- GET /api/alerts: alert payload for simple health checks.
+- GET /metrics: Prometheus text metrics.
+
+## Run With Nix
+
+```bash
+nix run github:dskdkj3/codex-quota-monitor#codex-quota-monitor -- \
+  --management-base-url http://127.0.0.1:8318 \
+  --gateway-health-url http://127.0.0.1:8317/healthz \
+  --auth-dir /path/to/auth-files
+```
+
+## Agent Guidance
+
+When wiring this into a NixOS repo, import
+`inputs.codexQuotaMonitor.nixosModules.default` and enable
+`services.codexQuotaMonitor` on the target host. Keep `listenAddress =
+"127.0.0.1"` and `openFirewall = false` unless the user explicitly asks for LAN
+access. Do not switch or activate a live system unless the user explicitly asks.

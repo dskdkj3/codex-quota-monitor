@@ -2,9 +2,20 @@
 
 [English](README.md)
 
-一个面向 `CLIProxyAPI` 承载的 Codex OAuth 账号池的浏览器监控页。它优先回答三个问题：当前 `5h` / `weekly` 还剩多少以 Plus 单位表示的总容量、CPA usage statistics 和账号负载现在是什么样、有没有必须介入的问题。Team 容量会按和 Plus `1:1` 的口径计入这些总量；Prolite 按 `10:1` 计入。布局针对 PC 浏览器、手机浏览器和小屏电子墨水浏览器都做了兼容。
+一个面向 `CLIProxyAPI` 承载的 Codex OAuth 账号池的自托管 quota / pool 监控页。它适合已经在 CPA 后面维护多个 Codex auth 文件的 operator：你需要的是浏览器 UI、机器可读账号推荐、Prometheus metrics 和 NixOS module，而不是泛化的桌面 usage tracker。
+
+它优先回答三个问题：当前 `5h` / `weekly` 还剩多少以 Plus 单位表示的总容量、CPA usage statistics 和账号负载现在是什么样、有没有必须介入的问题。Team 容量会按和 Plus `1:1` 的口径计入这些总量；Prolite 按 `10:1` 计入。布局针对 PC 浏览器、手机浏览器和小屏电子墨水浏览器都做了兼容。
+
+项目首页：<https://dskdkj3.github.io/codex-quota-monitor/>
 
 ![Codex Quota Monitor 预览图](docs/assets/dashboard-preview.svg)
+
+## 适合谁用
+
+- 已经在运行 `CLIProxyAPI` backed Codex OAuth 账号池的 operator
+- 希望用声明式 NixOS module 接入服务的自托管用户
+- 需要 `Best` / `Usable` / `Avoid` 账号推荐接口的 agent wrapper 作者
+- 重视默认 loopback 监听、显式 LAN 暴露和可审计部署边界的个人或小团队基础设施
 
 ## 你能直接看到什么
 
@@ -19,6 +30,14 @@
 - `Fast`：当前 CPA fast override 状态（`On`、`Off`、`Inherit` 或 `Unknown`），显示在 Pool 指标里
 - `Theme`：浅色/深色切换；首次跟随浏览器系统主题，手动点击后在当前浏览器记住选择
 - `适配设备`：桌面浏览器、手机浏览器、小屏或慢刷新的浏览器
+
+它和泛化 AI quota tracker 的区别：
+
+- 它建模的是 Codex OAuth pool 的运维状态，而不只是单个用户的本地桌面 usage。
+- 它会把 CPA management state、CPA usage statistics、可选 direct Codex quota window 和可选 SQLite 历史放在一起看。
+- 它提供 `/api/recommendations`，agent 可以不用抓 UI 就选择更健康的 auth 文件。
+- 它同时提供 Python app、Nix flake package/app 和可复用 NixOS module。
+- 它默认只监听 `127.0.0.1`；LAN 访问必须由 operator 显式打开。
 
 机器可读接口：
 
