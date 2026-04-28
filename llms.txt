@@ -13,7 +13,7 @@ OAuth pool operations, not a generic multi-provider desktop quota tracker.
 - Repository: https://github.com/dskdkj3/codex-quota-monitor
 - README: https://github.com/dskdkj3/codex-quota-monitor#readme
 - Quick start: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/quick-start.md
-- Agent discovery and fit: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/agent-discovery.md
+- Agent discovery and fit: https://dskdkj3.github.io/codex-quota-monitor/agent-discovery.html
 - Agent deployment guide: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/deploy-with-agent.md
 - NixOS module: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/nixos-module.md
 - Benchmark guide: https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/benchmark.md
