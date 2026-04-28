@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Codex Quota Monitor - CLIProxyAPI OAuth Pool Dashboard</title>
+    <meta name="description" content="Self-hosted Codex OAuth pool quota dashboard for CLIProxyAPI operators, with NixOS module, agent recommendations, Prometheus metrics, and loopback-first defaults.">
+    <meta name="robots" content="index,follow">
+    <link rel="canonical" href="https://dskdkj3.github.io/codex-quota-monitor/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Codex Quota Monitor">
+    <meta property="og:description" content="CLIProxyAPI-backed Codex OAuth pool quota dashboard with NixOS module, agent recommendations, and Prometheus metrics.">
+    <meta property="og:url" content="https://dskdkj3.github.io/codex-quota-monitor/">
+    <meta property="og:image" content="https://dskdkj3.github.io/codex-quota-monitor/assets/dashboard-preview.svg">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Codex Quota Monitor">
+    <meta name="twitter:description" content="Self-hosted quota dashboard for CLIProxyAPI-backed Codex OAuth pools.">
+    <meta name="twitter:image" content="https://dskdkj3.github.io/codex-quota-monitor/assets/dashboard-preview.svg">
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f3f7f8;
+        --surface: #ffffff;
+        --surface-soft: #e8f0f2;
+        --text: #182026;
+        --muted: #5d6670;
+        --line: #d3dee2;
+        --accent: #19736b;
+        --accent-strong: #0d5c55;
+        --accent-soft: #dbece8;
+        --code: #23313b;
+        --shadow: 0 18px 44px rgba(33, 38, 45, 0.12);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #111416;
+          --surface: #1b2024;
+          --surface-soft: #262c31;
+          --text: #edf1f3;
+          --muted: #aeb8bf;
+          --line: #343c43;
+          --accent: #63c2b6;
+          --accent-strong: #8fddd3;
+          --accent-soft: #203d3a;
+          --code: #eef3f5;
+          --shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        line-height: 1.5;
+      }
+
+      a {
+        color: var(--accent-strong);
+        text-decoration-thickness: 0.08em;
+        text-underline-offset: 0.18em;
+      }
+
+      .page {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 28px 20px 52px;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 46px;
+      }
+
+      .brand {
+        font-size: 15px;
+        font-weight: 760;
+        letter-spacing: 0;
+      }
+
+      .nav-links {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 14px;
+        font-size: 14px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 0.96fr) minmax(360px, 1.04fr);
+        gap: 34px;
+        align-items: center;
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        color: var(--accent-strong);
+        font-size: 13px;
+        font-weight: 740;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        max-width: 680px;
+        font-size: clamp(38px, 6vw, 72px);
+        line-height: 0.98;
+        letter-spacing: 0;
+      }
+
+      .lead {
+        margin: 22px 0 0;
+        max-width: 650px;
+        color: var(--muted);
+        font-size: 19px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 15px;
+        font-weight: 720;
+        text-decoration: none;
+      }
+
+      .button.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #ffffff;
+      }
+
+      .preview {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .preview img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .section {
+        margin-top: 58px;
+      }
+
+      h2 {
+        margin: 0 0 18px;
+        font-size: 28px;
+        line-height: 1.16;
+        letter-spacing: 0;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        min-height: 160px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+
+      .card h3 {
+        margin: 0 0 10px;
+        font-size: 18px;
+        letter-spacing: 0;
+      }
+
+      .card p,
+      .section p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .command {
+        margin-top: 18px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-soft);
+        overflow-x: auto;
+      }
+
+      code,
+      pre {
+        color: var(--code);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 14px;
+      }
+
+      pre {
+        margin: 0;
+      }
+
+      .links {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .link-card {
+        display: block;
+        min-height: 86px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        text-decoration: none;
+      }
+
+      .link-card strong {
+        display: block;
+        color: var(--text);
+      }
+
+      .link-card span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .footer {
+        margin-top: 56px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      @media (max-width: 840px) {
+        .nav {
+          align-items: flex-start;
+          flex-direction: column;
+          margin-bottom: 34px;
+        }
+
+        .nav-links {
+          justify-content: flex-start;
+        }
+
+        .hero {
+          grid-template-columns: 1fr;
+        }
+
+        .grid,
+        .links {
+          grid-template-columns: 1fr;
+        }
+
+        .lead {
+          font-size: 17px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <nav class="nav" aria-label="Primary navigation">
+        <div class="brand">Codex Quota Monitor</div>
+        <div class="nav-links">
+          <a href="https://github.com/dskdkj3/codex-quota-monitor">GitHub</a>
+          <a href="https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/quick-start.md">Quick Start</a>
+          <a href="https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/nixos-module.md">NixOS Module</a>
+          <a href="https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/deploy-with-agent.md">Agent Deploy</a>
+        </div>
+      </nav>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">CLIProxyAPI · Codex OAuth Pool · NixOS</p>
+          <h1>Quota-first dashboard for Codex OAuth pools.</h1>
+          <p class="lead">
+            A self-hosted monitor for operators running multiple Codex auth files behind
+            CLIProxyAPI. Track 5h and weekly pool capacity, CPA usage, reset windows,
+            account health, and machine-readable agent recommendations.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="https://github.com/dskdkj3/codex-quota-monitor">View on GitHub</a>
+            <a class="button" href="https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/quick-start.md">Run it locally</a>
+          </div>
+        </div>
+        <figure class="preview">
+          <img src="assets/dashboard-preview.svg" alt="Codex Quota Monitor dashboard preview">
+        </figure>
+      </section>
+
+      <section class="section" aria-labelledby="fit-title">
+        <h2 id="fit-title">Built for pool operations</h2>
+        <div class="grid">
+          <article class="card">
+            <h3>Codex and CPA aware</h3>
+            <p>Combines CPA management state, CPA usage statistics, optional direct Codex quota windows, and optional SQLite history.</p>
+          </article>
+          <article class="card">
+            <h3>Agent consumable</h3>
+            <p>Exposes <code>/api/recommendations</code>, <code>/api/diagnostics</code>, <code>/api/alerts</code>, and Prometheus <code>/metrics</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Self-hosted by default</h3>
+            <p>Runs as a Python app, Nix flake package/app, or NixOS service module. The default bind stays on <code>127.0.0.1</code>.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="start-title">
+        <h2 id="start-title">Quick start</h2>
+        <p>Run against a local CLIProxyAPI management gateway and optional auth-file directory.</p>
+        <div class="command">
+          <pre><code>nix run github:dskdkj3/codex-quota-monitor#codex-quota-monitor -- \
+  --management-base-url http://127.0.0.1:8318 \
+  --gateway-health-url http://127.0.0.1:8317/healthz \
+  --auth-dir /path/to/auth-files</code></pre>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="docs-title">
+        <h2 id="docs-title">Documentation</h2>
+        <div class="links">
+          <a class="link-card" href="https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/quick-start.md">
+            <strong>Quick Start</strong>
+            <span>Nix and Python run commands</span>
+          </a>
+          <a class="link-card" href="https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/benchmark.md">
+            <strong>Benchmark</strong>
+            <span>Fast, baseline, Team, and Plus calibration</span>
+          </a>
+          <a class="link-card" href="https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/deploy-with-agent.md">
+            <strong>Agent Deploy</strong>
+            <span>Prompt template for coding agents</span>
+          </a>
+          <a class="link-card" href="https://github.com/dskdkj3/codex-quota-monitor/blob/main/docs/nixos-module.md">
+            <strong>NixOS Module</strong>
+            <span>Declarative service options</span>
+          </a>
+        </div>
+      </section>
+
+      <footer class="footer">
+        MIT licensed. This project is intentionally focused on CLIProxyAPI-backed Codex OAuth pools.
+      </footer>
+    </main>
+  </body>
+</html>
