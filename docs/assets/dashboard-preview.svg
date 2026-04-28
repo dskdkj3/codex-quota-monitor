@@ -57,7 +57,7 @@
 
   <rect x="130" y="674" width="555" height="58" rx="8" fill="#f9faf7" stroke="#d9e0d8"/>
   <rect x="130" y="674" width="6" height="58" rx="3" fill="#95631b"/>
-  <text x="154" y="707" fill="#17212d" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="16" font-weight="800">account-slot</text>
+  <text x="154" y="707" fill="#17212d" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="16" font-weight="800">plus-slot-a</text>
   <text x="534" y="707" fill="#5d6975" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="14" font-weight="800">Plus</text>
   <rect x="590" y="688" width="76" height="24" rx="12" fill="#f8edda" stroke="#d9e0d8"/>
   <text x="628" y="705" fill="#95631b" font-family="Maple Mono NF CN, ui-monospace, monospace" font-size="12" font-weight="800" text-anchor="middle">Reset</text>

@@ -31,10 +31,10 @@ A selector matches against `auth_index`, file name, label, email, account, or pa
 ```bash
 codex-quota-benchmark \
   --management-base-url http://127.0.0.1:8318 \
-  --team-selector account-slot \
-  --plus-selector account-slot \
-  --plus-selector account-slot \
-  --prolite-selector account-slot
+  --team-selector codex-team-slot-team.json \
+  --plus-selector codex-plus-slot-a-plus.json \
+  --plus-selector codex-plus-slot-b-plus.json \
+  --prolite-selector codex-prolite-slot-prolite.json
 ```
 
 By default the tool will:
@@ -52,6 +52,8 @@ By default the tool will:
 - `--skip-performance`: only measure Team-versus-Plus quota ratios
 - `--skip-quota`: only measure fast-versus-baseline latency
 - `--keep-work-dir`: keep temporary gateway configs and logs under the output directory
+
+Benchmark outputs contain account selectors, labels, paths, token counts, and quota deltas. Treat the `result/` directory as private, especially when `--keep-work-dir` is enabled because copied auth files are preserved there.
 
 ## Output Files
 

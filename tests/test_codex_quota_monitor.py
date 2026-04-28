@@ -151,7 +151,7 @@ def build_history_dashboard(*, sampled_at, five_hour_percent, weekly_percent=80,
             "files": [
                 {
                     "auth_index": "acct-plus",
-                    "label": "account-slot",
+                    "label": "plus-slot",
                     "status": status,
                     "updated_at": sampled_at.isoformat(timespec="seconds"),
                     "id_token": {"plan_type": "plus"},
@@ -171,7 +171,7 @@ def build_history_dashboard(*, sampled_at, five_hour_percent, weekly_percent=80,
                                 "details": [
                                     {
                                         "timestamp": sampled_at.isoformat(timespec="seconds"),
-                                        "source": "account-slot",
+                                        "source": "plus-slot",
                                         "auth_index": "acct-plus",
                                         "tokens": {"total_tokens": 1000},
                                         "failed": False,
@@ -470,7 +470,7 @@ class DashboardSnapshotTests(unittest.TestCase):
             auth_files=[
                 {
                     "auth_index": "new-slot",
-                    "label": "account-slot",
+                    "label": "prolite-slot-a",
                     "provider": "codex",
                     "status": "active",
                     "id_token": {"plan_type": "prolite"},
@@ -479,14 +479,14 @@ class DashboardSnapshotTests(unittest.TestCase):
             usage_details=[
                 {
                     "timestamp": "2026-04-20T12:20:00+08:00",
-                    "source": "account-slot",
+                    "source": "prolite-slot-a",
                     "auth_index": "old-slot",
                     "tokens": {"total_tokens": 800},
                     "failed": False,
                 },
                 {
                     "timestamp": "2026-04-20T12:22:00+08:00",
-                    "source": "account-slot",
+                    "source": "prolite-slot-a",
                     "auth_index": "new-slot",
                     "tokens": {"total_tokens": 200},
                     "failed": False,
@@ -495,7 +495,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         )
 
         pool_accounts = snapshot["tabs"]["pool"]["accounts"]
-        self.assertEqual([account["title"] for account in pool_accounts], ["account-slot"])
+        self.assertEqual([account["title"] for account in pool_accounts], ["prolite-slot-a"])
         self.assertEqual(pool_accounts[0]["badge"], "Prolite")
         self.assertEqual(pool_accounts[0]["requests"], 1)
         self.assertNotIn("Runtime", [account["badge"] for account in pool_accounts])
@@ -507,7 +507,7 @@ class DashboardSnapshotTests(unittest.TestCase):
             auth_files=[
                 {
                     "auth_index": "known-slot",
-                    "label": "account-slot",
+                    "label": "known-slot",
                     "provider": "codex",
                     "status": "active",
                     "id_token": {"plan_type": "plus"},
@@ -516,14 +516,14 @@ class DashboardSnapshotTests(unittest.TestCase):
             usage_details=[
                 {
                     "timestamp": "2026-04-20T12:20:00+08:00",
-                    "source": "account-slot",
+                    "source": "orphan-slot",
                     "auth_index": "orphan-slot",
                     "tokens": {"total_tokens": 800},
                     "failed": False,
                 },
                 {
                     "timestamp": "2026-04-20T12:22:00+08:00",
-                    "source": "account-slot",
+                    "source": "known-slot",
                     "auth_index": "known-slot",
                     "tokens": {"total_tokens": 200},
                     "failed": False,
@@ -533,7 +533,7 @@ class DashboardSnapshotTests(unittest.TestCase):
 
         pool_accounts = snapshot["tabs"]["pool"]["accounts"]
         runtime_account = next(account for account in pool_accounts if account["badge"] == "Runtime")
-        self.assertEqual(runtime_account["title"], "account-slot")
+        self.assertEqual(runtime_account["title"], "orphan-slot")
         self.assertEqual(runtime_account["statusLabel"], "Missing auth-file")
         self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][0]["value"], "1")
 
@@ -542,14 +542,14 @@ class DashboardSnapshotTests(unittest.TestCase):
             auth_files=[
                 {
                     "auth_index": "plus-slot",
-                    "label": "account-slot",
+                    "label": "shared-slot",
                     "provider": "codex",
                     "status": "active",
                     "id_token": {"plan_type": "plus"},
                 },
                 {
                     "auth_index": "team-slot",
-                    "label": "account-slot",
+                    "label": "shared-slot",
                     "provider": "codex",
                     "status": "active",
                     "id_token": {"plan_type": "team"},
@@ -558,14 +558,14 @@ class DashboardSnapshotTests(unittest.TestCase):
             usage_details=[
                 {
                     "timestamp": "2026-04-20T12:20:00+08:00",
-                    "source": "account-slot",
+                    "source": "shared-slot",
                     "auth_index": "plus-slot",
                     "tokens": {"total_tokens": 800},
                     "failed": False,
                 },
                 {
                     "timestamp": "2026-04-20T12:22:00+08:00",
-                    "source": "account-slot",
+                    "source": "shared-slot",
                     "auth_index": "team-slot",
                     "tokens": {"total_tokens": 200},
                     "failed": False,
@@ -586,7 +586,7 @@ class DashboardSnapshotTests(unittest.TestCase):
                 "files": [
                     {
                         "auth_index": "acct-plus-known",
-                        "label": "account-slot",
+                        "label": "plus-known-slot",
                         "status": "active",
                         "updated_at": "2026-04-20T12:20:00+08:00",
                         "id_token": {"plan_type": "plus"},
@@ -597,7 +597,7 @@ class DashboardSnapshotTests(unittest.TestCase):
                     },
                     {
                         "auth_index": "acct-plus-limited",
-                        "label": "account-slot",
+                        "label": "plus-limited-slot",
                         "status": "error",
                         "unavailable": True,
                         "next_retry_after": "2026-04-20T13:40:00+08:00",
@@ -610,7 +610,7 @@ class DashboardSnapshotTests(unittest.TestCase):
                     },
                     {
                         "auth_index": "acct-team",
-                        "label": "account-slot",
+                        "label": "team-slot",
                         "status": "active",
                         "updated_at": "2026-04-20T12:25:00+08:00",
                         "id_token": {"plan_type": "team"},
@@ -634,28 +634,28 @@ class DashboardSnapshotTests(unittest.TestCase):
                                     "details": [
                                         {
                                             "timestamp": "2026-04-20T12:21:00+08:00",
-                                            "source": "account-slot",
+                                            "source": "plus-known-slot",
                                             "auth_index": "acct-plus-known",
                                             "tokens": {"total_tokens": 1600},
                                             "failed": False,
                                         },
                                         {
                                             "timestamp": "2026-04-20T12:22:00+08:00",
-                                            "source": "account-slot",
+                                            "source": "plus-limited-slot",
                                             "auth_index": "acct-plus-limited",
                                             "tokens": {"total_tokens": 800},
                                             "failed": True,
                                         },
                                         {
                                             "timestamp": "2026-04-20T12:23:00+08:00",
-                                            "source": "account-slot",
+                                            "source": "team-slot",
                                             "auth_index": "acct-team",
                                             "tokens": {"total_tokens": 400},
                                             "failed": False,
                                         },
                                         {
                                             "timestamp": "2026-04-20T12:24:00+08:00",
-                                            "source": "account-slot",
+                                            "source": "plus-known-slot",
                                             "auth_index": "acct-plus-known",
                                             "tokens": {"total_tokens": 400},
                                             "failed": False,
@@ -759,7 +759,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(pool_tab["capacityWindows"][0]["plusTotal"], 2)
         self.assertEqual(pool_tab["capacityWindows"][0]["trackedTotal"], 3)
         self.assertIn("Unclassified 1", pool_tab["capacityWindows"][0]["summary"])
-        limited_account = next(account for account in pool_tab["accounts"] if account["title"] == "account-slot")
+        limited_account = next(account for account in pool_tab["accounts"] if account["title"] == "plus-limited-slot")
         self.assertEqual(limited_account["statusLabel"], "Reset scheduled")
         self.assertEqual(limited_account["tone"], "warn")
         self.assertEqual(limited_account["sharePercent"], 25)
@@ -769,7 +769,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertIn("Resets", limited_account["note"])
         self.assertIn("direct Codex usage sampling", pool_tab["footnote"])
         self.assertIn("Team counts 1:1 and Prolite counts 10:1 in total capacity", pool_tab["footnote"])
-        plus_known = next(account for account in pool_tab["accounts"] if account["title"] == "account-slot")
+        plus_known = next(account for account in pool_tab["accounts"] if account["title"] == "plus-known-slot")
         self.assertEqual(plus_known["requests"], 2)
         self.assertEqual(plus_known["sharePercent"], 62)
         self.assertNotIn("stale", plus_known["windows"][0]["note"])
@@ -785,12 +785,12 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertIn("3 direct-sampled accounts", resets_tab["summary"])
         five_hour_rows = resets_tab["columns"][0]["items"]
         weekly_rows = resets_tab["columns"][1]["items"]
-        self.assertEqual([row["account"] for row in five_hour_rows], ["account-slot", "account-slot", "account-slot"])
+        self.assertEqual([row["account"] for row in five_hour_rows], ["plus-known-slot", "team-slot", "plus-limited-slot"])
         self.assertEqual(five_hour_rows[0]["remainingText"], "3h 0min")
         self.assertEqual(five_hour_rows[0]["beijingTimeText"], "04-20 23:30")
         self.assertEqual(five_hour_rows[-1]["remainingText"], "Unknown")
         self.assertEqual(five_hour_rows[-1]["beijingTimeText"], "Unknown")
-        self.assertEqual([row["account"] for row in weekly_rows], ["account-slot", "account-slot", "account-slot"])
+        self.assertEqual([row["account"] for row in weekly_rows], ["plus-known-slot", "team-slot", "plus-limited-slot"])
         self.assertEqual(weekly_rows[0]["remainingText"], "2d 7h 30min")
         self.assertEqual(weekly_rows[0]["beijingTimeText"], "04-23 04:00")
 
@@ -829,14 +829,14 @@ class DashboardSnapshotTests(unittest.TestCase):
                 "files": [
                     {
                         "auth_index": "acct-plus",
-                        "label": "account-slot",
+                        "label": "plus-slot",
                         "status": "active",
                         "updated_at": "2026-04-20T12:20:00+08:00",
                         "id_token": {"plan_type": "plus"},
                     },
                     {
                         "auth_index": "acct-enterprise",
-                        "label": "account-slot",
+                        "label": "enterprise-slot",
                         "status": "active",
                         "updated_at": "2026-04-20T12:21:00+08:00",
                         "id_token": {"plan_type": "enterprise"},
@@ -878,7 +878,7 @@ class DashboardSnapshotTests(unittest.TestCase):
 
         self.assertEqual(snapshot["summary"]["poolPill"], "1 Plus · 1 Non-Plus")
         self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.40 Plus")
-        enterprise_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["title"] == "account-slot")
+        enterprise_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["title"] == "enterprise-slot")
         self.assertEqual(enterprise_account["windows"][0]["valueText"], "Unknown")
         self.assertIn("Waiting for first direct sample.", enterprise_account["windows"][0]["note"])
         self.assertIn("Enterprise plan is shown in the grid but excluded from total 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
@@ -936,14 +936,14 @@ class DashboardSnapshotTests(unittest.TestCase):
                 + [
                     {
                         "auth_index": "acct-team",
-                        "label": "account-slot",
+                        "label": "team-slot",
                         "status": "active",
                         "updated_at": "2026-04-24T23:25:00+08:00",
                         "id_token": {"plan_type": "team"},
                     },
                     {
                         "auth_index": "acct-prolite",
-                        "label": "account-slot",
+                        "label": "prolite-slot",
                         "status": "active",
                         "updated_at": "2026-04-24T23:26:00+08:00",
                         "id_token": {"plan_type": "pro_lite"},
@@ -995,7 +995,7 @@ class DashboardSnapshotTests(unittest.TestCase):
             auth_files=[
                 {
                     "auth_index": "acct-plus",
-                    "label": "account-slot",
+                    "label": "plus-slot",
                     "status": "active",
                     "id_token": {"plan_type": "plus"},
                 }
@@ -1040,7 +1040,7 @@ class DashboardSnapshotTests(unittest.TestCase):
             auth_files=[
                 {
                     "auth_index": "acct-plus",
-                    "label": "account-slot",
+                    "label": "plus-slot",
                     "status": "active",
                     "id_token": {"plan_type": "plus"},
                 }
@@ -1073,7 +1073,7 @@ class DashboardSnapshotTests(unittest.TestCase):
             auth_files=[
                 {
                     "auth_index": "acct-plus",
-                    "label": "account-slot",
+                    "label": "plus-slot",
                     "status": "active",
                     "id_token": {"plan_type": "plus"},
                 }
@@ -1105,7 +1105,7 @@ class DashboardSnapshotTests(unittest.TestCase):
             auth_files=[
                 {
                     "auth_index": "acct-plus",
-                    "label": "account-slot",
+                    "label": "plus-slot",
                     "status": "active",
                     "id_token": {"plan_type": "plus"},
                 }
@@ -1189,14 +1189,14 @@ class DashboardSnapshotTests(unittest.TestCase):
                 "files": [
                     {
                         "auth_index": "acct-plus",
-                        "label": "account-slot",
+                        "label": "plus-slot",
                         "status": "active",
                         "updated_at": "2026-04-20T12:20:00+08:00",
                         "id_token": {"plan_type": "plus"},
                     },
                     {
                         "auth_index": "acct-enterprise",
-                        "label": "account-slot",
+                        "label": "enterprise-slot",
                         "status": "active",
                         "updated_at": "2026-04-20T12:21:00+08:00",
                         "id_token": {"plan_type": "enterprise"},
@@ -1247,15 +1247,15 @@ class DashboardSnapshotTests(unittest.TestCase):
 
         self.assertEqual(snapshot["summary"]["fiveHourPill"], "5h 0.50 Plus")
         self.assertEqual(snapshot["summary"]["weeklyPill"], "Weekly 0.80 Plus")
-        enterprise_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["title"] == "account-slot")
+        enterprise_account = next(account for account in snapshot["tabs"]["pool"]["accounts"] if account["title"] == "enterprise-slot")
         self.assertEqual(enterprise_account["statusLabel"], "Reset scheduled")
         self.assertEqual(enterprise_account["tone"], "warn")
         self.assertEqual(enterprise_account["windows"][0]["valueText"], "0%")
         self.assertIn("Enterprise plan is shown in the grid but excluded from total 5h/weekly capacity.", enterprise_account["windows"][0]["note"])
         self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][1]["value"], "0")
         five_hour_reset_accounts = [row["account"] for row in snapshot["tabs"]["resets"]["columns"][0]["items"]]
-        self.assertEqual(five_hour_reset_accounts, ["account-slot", "account-slot"])
-        enterprise_reset = next(row for row in snapshot["tabs"]["resets"]["columns"][0]["items"] if row["account"] == "account-slot")
+        self.assertEqual(five_hour_reset_accounts, ["plus-slot", "enterprise-slot"])
+        enterprise_reset = next(row for row in snapshot["tabs"]["resets"]["columns"][0]["items"] if row["account"] == "enterprise-slot")
         self.assertEqual(enterprise_reset["valueText"], "0%")
         self.assertEqual(enterprise_reset["beijingTimeText"], "04-24 08:00")
         self.assertEqual(enterprise_reset["displayResetSource"], "week")
@@ -1267,7 +1267,7 @@ class DashboardSnapshotTests(unittest.TestCase):
             auth_files=[
                 {
                     "auth_index": "acct-plus",
-                    "label": "account-slot",
+                    "label": "plus-slot",
                     "status": "active",
                     "updated_at": "2026-04-20T12:20:00+08:00",
                     "id_token": {"plan_type": "plus"},
@@ -1302,7 +1302,7 @@ class DashboardSnapshotTests(unittest.TestCase):
                 "files": [
                     {
                         "auth_index": "acct-plus",
-                        "label": "account-slot",
+                        "label": "plus-slot",
                         "provider": "codex",
                         "type": "codex",
                         "status": "active",
@@ -1342,8 +1342,8 @@ class DashboardSnapshotTests(unittest.TestCase):
         )
 
         self.assertEqual(snapshot["summary"]["poolPill"], "1 Plus · 0 Non-Plus")
-        self.assertEqual([account["title"] for account in snapshot["tabs"]["pool"]["accounts"]], ["account-slot"])
-        self.assertEqual([item["title"] for item in snapshot["tabs"]["traffic"]["distribution"]], ["account-slot"])
+        self.assertEqual([account["title"] for account in snapshot["tabs"]["pool"]["accounts"]], ["plus-slot"])
+        self.assertEqual([item["title"] for item in snapshot["tabs"]["traffic"]["distribution"]], ["plus-slot"])
 
     def test_build_unavailable_snapshot_has_monitor_alert(self):
         snapshot = MODULE.build_unavailable_snapshot("auth-files: connection refused")

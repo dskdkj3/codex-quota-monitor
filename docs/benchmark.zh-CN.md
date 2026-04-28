@@ -31,10 +31,10 @@ selector 会在 `auth_index`、文件名、label、email、account、path 这些
 ```bash
 codex-quota-benchmark \
   --management-base-url http://127.0.0.1:8318 \
-  --team-selector account-slot \
-  --plus-selector account-slot \
-  --plus-selector account-slot \
-  --prolite-selector account-slot
+  --team-selector codex-team-slot-team.json \
+  --plus-selector codex-plus-slot-a-plus.json \
+  --plus-selector codex-plus-slot-b-plus.json \
+  --prolite-selector codex-prolite-slot-prolite.json
 ```
 
 默认行为：
@@ -52,6 +52,8 @@ codex-quota-benchmark \
 - `--skip-performance`：只测 Team 相对 Plus 的 quota 倍率
 - `--skip-quota`：只测 fast 相对 baseline 的性能
 - `--keep-work-dir`：把临时 gateway 的 config 和日志也保留下来
+
+benchmark 输出会包含账号 selector、label、path、token 计数和 quota delta。请把 `result/` 目录当成私有数据；如果启用了 `--keep-work-dir`，里面还会保留复制出来的 auth file，更不能公开上传。
 
 ## 输出文件
 

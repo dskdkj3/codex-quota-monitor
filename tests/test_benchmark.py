@@ -61,21 +61,21 @@ class BenchmarkHelperTests(unittest.TestCase):
         auth_files = [
             {
                 "auth_index": "plus-slot",
-                "label": "account-slot",
+                "label": "plus-slot",
                 "name": "plus.json",
                 "path": "/tmp/plus.json",
                 "id_token": {"plan_type": "plus", "chatgpt_account_id": "acct-plus"},
             },
             {
                 "auth_index": "team-slot",
-                "label": "account-slot",
+                "label": "team-slot",
                 "name": "team.json",
                 "path": "/tmp/team.json",
                 "id_token": {"plan_type": "team", "chatgpt_account_id": "acct-team"},
             },
             {
                 "auth_index": "prolite-slot",
-                "label": "account-slot",
+                "label": "prolite-slot",
                 "name": "prolite.json",
                 "path": "/tmp/prolite.json",
                 "id_token": {"plan_type": "pro_lite", "chatgpt_account_id": "acct-prolite"},
@@ -223,7 +223,7 @@ class RequestRecordingTests(unittest.TestCase):
     def test_run_one_request_records_expected_fields(self):
         record = run_one_request(
             phase="performance",
-            gateway_name="plus:account-slot",
+            gateway_name="plus:test-slot",
             base_url=self.base_url,
             api_key="sk-bench",
             prompt_case=PromptCase(prompt_id="short-01", prompt_class="short", input_text="answer with ok"),
@@ -246,12 +246,12 @@ class QuotaSummaryTests(unittest.TestCase):
         team_gateway = type(
             "Gateway",
             (),
-            {"account": type("Account", (), {"auth_index": "team-slot", "label": "account-slot"})()},
+            {"account": type("Account", (), {"auth_index": "team-slot", "label": "team-slot"})()},
         )()
         plus_gateway = type(
             "Gateway",
             (),
-            {"account": type("Account", (), {"auth_index": "plus-slot", "label": "account-slot"})()},
+            {"account": type("Account", (), {"auth_index": "plus-slot", "label": "plus-slot"})()},
         )()
 
         summary = build_quota_summary(
@@ -269,7 +269,7 @@ class QuotaSummaryTests(unittest.TestCase):
         self.assertEqual(summary["stopReason"], "thresholds-met")
         self.assertEqual(summary["aggregate"]["5h"]["mean_ratio_in_plus_units"], 5.0)
         self.assertEqual(summary["aggregate"]["week"]["mean_ratio_in_plus_units"], 5.0)
-        self.assertEqual(summary["per_plus"][0]["plus_label"], "account-slot")
+        self.assertEqual(summary["per_plus"][0]["plus_label"], "plus-slot")
         weekly_to_five_hour = summary["weeklyToFiveHour"]
         self.assertEqual(weekly_to_five_hour["recommended_dashboard_multiplier"], 2.0)
         self.assertEqual(weekly_to_five_hour["min_five_hour_per_weekly_percent"], 2.0)
@@ -279,7 +279,7 @@ class QuotaSummaryTests(unittest.TestCase):
         team_gateway = type(
             "Gateway",
             (),
-            {"account": type("Account", (), {"auth_index": "team-slot", "label": "account-slot"})()},
+            {"account": type("Account", (), {"auth_index": "team-slot", "label": "team-slot"})()},
         )()
 
         summary = build_quota_summary(
@@ -299,12 +299,12 @@ class QuotaSummaryTests(unittest.TestCase):
         team_gateway = type(
             "Gateway",
             (),
-            {"account": type("Account", (), {"auth_index": "team-slot", "label": "account-slot"})()},
+            {"account": type("Account", (), {"auth_index": "team-slot", "label": "team-slot"})()},
         )()
         prolite_gateway = type(
             "Gateway",
             (),
-            {"account": type("Account", (), {"auth_index": "prolite-slot", "label": "account-slot"})()},
+            {"account": type("Account", (), {"auth_index": "prolite-slot", "label": "prolite-slot"})()},
         )()
 
         summary = build_quota_summary(
@@ -352,7 +352,7 @@ class QuotaSummaryTests(unittest.TestCase):
                 },
                 "per_plus": [
                     {
-                        "plus_label": "account-slot",
+                        "plus_label": "plus-slot",
                         "ratios": {
                             "5h": {"ratio_in_plus_units": 5.0},
                             "week": {"ratio_in_plus_units": 4.5},
@@ -367,7 +367,7 @@ class QuotaSummaryTests(unittest.TestCase):
                     "accounts": [
                         {
                             "role": "plus",
-                            "label": "account-slot",
+                            "label": "plus-slot",
                             "five_hour_drop": 7.0,
                             "weekly_drop": 2.0,
                             "five_hour_per_weekly_percent": 3.5,
@@ -380,7 +380,7 @@ class QuotaSummaryTests(unittest.TestCase):
 
         self.assertIn("requests.csv", report)
         self.assertIn("summary.json", report)
-        self.assertIn("account-slot", report)
+        self.assertIn("plus-slot", report)
         self.assertIn("Weekly-to-5h Cap", report)
         self.assertIn("3.50", report)
 
