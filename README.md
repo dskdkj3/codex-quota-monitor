@@ -8,13 +8,13 @@ Browser-friendly quota and pool dashboard for `CLIProxyAPI`-backed Codex OAuth p
 
 ## At A Glance
 
-- `Pool`: 5h and weekly known capacity in Plus units, with Team counted 1:1, Prolite counted 10:1, and other non-Plus plans remaining visible without affecting those totals; an account with exhausted weekly quota contributes `0` to total 5h capacity
-- `Resets`: 5h and weekly reset schedules sorted from nearest to latest, with compact Beijing-time targets; when weekly quota is exhausted, the 5h row displays the weekly reset that actually restores availability
+- `Pool`: 5h and weekly known capacity in Plus units, with Team counted 1:1, Prolite counted 10:1, and other non-Plus plans remaining visible without affecting those totals; an account with exhausted weekly quota contributes `0` to total 5h capacity, and CPA-side auth cooldowns show as warnings instead of healthy accounts
+- `Resets`: 5h and weekly reset schedules sorted from nearest to latest, with compact Beijing-time targets; `Reset scheduled` means direct Codex quota still reports an exhausted window with a reset time, and when weekly quota is exhausted, the 5h row displays the weekly reset that actually restores availability
 - `Trends`: latest 6h of SQLite-backed burn rate, ETA, and optional benchmark summary import
 - `Usage`: request/token totals, hourly/day buckets, model breakdown, and account split from `CLIProxyAPI` usage statistics
 - `Audit`: recent account-pool, plan, status, quota-window, and benchmark-summary changes derived from stored snapshots
 - `Diagnostics`: data-source health for the gateway, CPA management APIs, direct quota sampling, SQLite history, and benchmark import
-- `Alerts`: only hard auth failures, hard quota exhaustion without a scheduled reset, and monitor/source degradation; reset-scheduled usage-limit cooldowns stay visible in `Pool` / `Resets` without turning the account card red
+- `Alerts`: only hard auth failures, hard quota exhaustion without a scheduled reset, and monitor/source degradation; direct `Reset scheduled` windows and `CPA cooldown` auth-file states stay visible in `Pool` / `Resets` without turning the account card red
 - `Status`: gateway reachability and refresh health for the current CPA snapshot
 - `Fast`: current CPA fast override state (`On`, `Off`, `Inherit`, or `Unknown`) in the Pool metrics
 - `Theme`: light/dark toggle that follows the browser color scheme until the current browser stores an explicit choice

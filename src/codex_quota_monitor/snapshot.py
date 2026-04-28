@@ -616,6 +616,28 @@ def is_hard_exhausted_quota_window(window):
     return bool(isinstance(window, dict) and window.get("state") == "exhausted" and not window_has_reset_schedule(window))
 
 
+def has_fresh_direct_quota_windows(quota_sample, reference_time, cycle_seconds):
+    if not isinstance(quota_sample, dict) or quota_sample.get("sampledAt") is None:
+        return False
+    if is_quota_sample_stale(quota_sample, reference_time, cycle_seconds):
+        return False
+    windows = quota_sample.get("windows")
+    return isinstance(windows, dict) and any(isinstance(window, dict) for window in windows.values())
+
+
+def direct_quota_has_recovered(windows, quota_sample, reference_time, cycle_seconds):
+    if not has_fresh_direct_quota_windows(quota_sample, reference_time, cycle_seconds):
+        return False
+    direct_windows = [
+        window
+        for window in windows
+        if isinstance(window, dict) and isinstance(window.get("percent"), int)
+    ]
+    if not direct_windows:
+        return False
+    return all(window.get("state") != "exhausted" and window.get("percent", 0) > 0 for window in direct_windows)
+
+
 def quota_plan_label(auth_file, quota_sample):
     if isinstance(quota_sample, dict):
         sampled_plan_type = str(quota_sample.get("planType") or "").strip()
@@ -929,8 +951,15 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
     remaining_floor = min(remaining_values) if remaining_values else 101
     reset_scheduled_window = any(is_reset_scheduled_quota_window(window) for window in windows)
     hard_exhausted_window = any(is_hard_exhausted_quota_window(window) for window in windows)
-    quota_cooldown = (generic_quota and (reset_at is not None or reset_scheduled_window)) or reset_scheduled_window
-    quota_issue = (generic_quota and not quota_cooldown) or hard_exhausted_window
+    direct_quota_recovered = direct_quota_has_recovered(windows, quota_sample, reference_time, quota_cycle_seconds)
+    cpa_quota_cooldown = bool(
+        generic_quota
+        and not reset_scheduled_window
+        and not hard_exhausted_window
+        and (reset_at is not None or unavailable or status.lower() in {"error", "unavailable"})
+    )
+    quota_cooldown = reset_scheduled_window
+    quota_issue = (generic_quota and not quota_cooldown and not cpa_quota_cooldown) or hard_exhausted_window
 
     tone = "good"
     issue_kind = None
@@ -942,6 +971,14 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
     elif quota_cooldown:
         tone = "warn"
         status_label = "Reset scheduled"
+    elif cpa_quota_cooldown:
+        tone = "warn"
+        status_label = "CPA cooldown"
+        if direct_quota_recovered:
+            recovery_note = "Direct quota has recovered, but CPA still marks this auth in quota cooldown."
+        else:
+            recovery_note = "CPA reports quota cooldown; direct quota has not confirmed an exhausted window."
+        message_text = append_window_note(message_text, recovery_note)
     elif disabled:
         tone = "bad"
         issue_kind = "auth"
@@ -972,6 +1009,7 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
         "statusLabel": status_label,
         "genericQuotaExceeded": generic_quota,
         "quotaCooldown": quota_cooldown,
+        "cpaCooldown": cpa_quota_cooldown,
         "summary": summary,
         "meta": meta,
         "trafficText": f"{format_count(requests)} req · {format_count(failed)} fail · {format_tokens(tokens)} tok · {share_percent}% share",
@@ -1233,6 +1271,7 @@ def build_pool_accounts(contexts):
             "capacityWeight": capacity_plan_weight(context["planKind"]),
             "issueKind": context["issueKind"],
             "quotaCooldown": context.get("quotaCooldown", False),
+            "cpaCooldown": context.get("cpaCooldown", False),
             "statusLabel": context["statusLabel"],
             "summary": context["summary"],
             "meta": context["meta"],
@@ -1975,10 +2014,19 @@ def build_dashboard_snapshot(
     )
     alerts = build_alert_section(auth_alert_items + monitor_alert_items)
 
-    active_count = sum(1 for context in contexts if context["issueKind"] is None)
+    active_count = sum(1 for context in contexts if context["issueKind"] is None and context["tone"] == "good")
+    warning_count = sum(1 for context in contexts if context["issueKind"] is None and context["tone"] == "warn")
     hard_issue_count = sum(1 for context in contexts if context["issueKind"] == "auth")
     quota_issue_count = sum(1 for context in contexts if context["issueKind"] == "quota")
     non_plus_total = plan_counts["team"] + plan_counts["other"]
+    pool_summary_bits = [
+        f"{plan_counts['plus']} Plus",
+        f"{non_plus_total} Non-Plus",
+        f"{active_count} healthy",
+    ]
+    if warning_count:
+        pool_summary_bits.append(count_label(warning_count, "warning"))
+    pool_summary_bits.append(count_label(hard_issue_count + quota_issue_count, "issue"))
     fast_value = fast_mode["label"]
     if fast_value.startswith("Fast "):
         fast_value = fast_value[5:]
@@ -2015,7 +2063,7 @@ def build_dashboard_snapshot(
         "tabs": {
             "pool": {
                 "title": "Pool Capacity",
-                "summary": f"{plan_counts['plus']} Plus · {non_plus_total} Non-Plus · {active_count} healthy · {hard_issue_count + quota_issue_count} issues",
+                "summary": " · ".join(pool_summary_bits),
                 "stats": [
                     {"label": "Plus", "value": str(plan_counts["plus"]), "detail": "accounts with a native Plus plan"},
                     {

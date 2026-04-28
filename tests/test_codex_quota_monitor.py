@@ -746,7 +746,7 @@ class DashboardSnapshotTests(unittest.TestCase):
 
         pool_tab = snapshot["tabs"]["pool"]
         self.assertEqual(pool_tab["title"], "Pool Capacity")
-        self.assertEqual(pool_tab["summary"], "2 Plus · 1 Non-Plus · 3 healthy · 0 issues")
+        self.assertEqual(pool_tab["summary"], "2 Plus · 1 Non-Plus · 2 healthy · 1 warning · 0 issues")
         self.assertEqual(pool_tab["stats"][2]["label"], "Fast")
         self.assertEqual(pool_tab["stats"][2]["value"], "On")
         self.assertEqual(
@@ -759,13 +759,16 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(pool_tab["capacityWindows"][0]["trackedTotal"], 3)
         self.assertIn("Unclassified 1", pool_tab["capacityWindows"][0]["summary"])
         limited_account = next(account for account in pool_tab["accounts"] if account["title"] == "plus-limited-slot")
-        self.assertEqual(limited_account["statusLabel"], "Reset scheduled")
+        self.assertEqual(limited_account["statusLabel"], "CPA cooldown")
         self.assertEqual(limited_account["tone"], "warn")
+        self.assertTrue(limited_account["cpaCooldown"])
+        self.assertFalse(limited_account["quotaCooldown"])
         self.assertEqual(limited_account["sharePercent"], 25)
         self.assertEqual(limited_account["failed"], 1)
         self.assertEqual(limited_account["tokens"], 800)
         self.assertEqual(limited_account["windows"][0]["valueText"], "Unknown")
         self.assertIn("Resets", limited_account["note"])
+        self.assertIn("CPA reports quota cooldown", limited_account["note"])
         self.assertIn("direct Codex usage sampling", pool_tab["footnote"])
         self.assertIn("Team counts 1:1 and Prolite counts 10:1 in total capacity", pool_tab["footnote"])
         plus_known = next(account for account in pool_tab["accounts"] if account["title"] == "plus-known-slot")
@@ -819,6 +822,51 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertEqual(diagnostic_by_title["Usage API"]["tone"], "good")
         self.assertEqual(diagnostic_by_title["Direct quota sampling"]["tone"], "warn")
         self.assertIn("warning", diagnostics["summary"])
+
+    def test_build_dashboard_snapshot_separates_cpa_cooldown_from_recovered_direct_quota(self):
+        sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()
+        snapshot = self.build_minimal_snapshot(
+            auth_files=[
+                {
+                    "auth_index": "acct-plus",
+                    "label": "plus-slot",
+                    "status": "error",
+                    "unavailable": True,
+                    "next_retry_after": "2026-04-20T13:40:00+08:00",
+                    "status_message": (
+                        '{"error":{"type":"usage_limit_reached","message":"The usage limit has been reached",'
+                        '"resets_in_seconds":4200}}'
+                    ),
+                    "updated_at": "2026-04-20T12:20:00+08:00",
+                    "id_token": {"plan_type": "plus"},
+                }
+            ],
+            usage_details=[],
+            quota_samples={
+                "acct-plus": {
+                    "sampledAt": sampled_at,
+                    "planType": "plus",
+                    "windows": {
+                        "5h": {"percent": 100, "resetAt": dt.datetime(2026, 4, 20, 17, 0, tzinfo=dt.timezone.utc).astimezone()},
+                        "week": {"percent": 100, "resetAt": dt.datetime(2026, 4, 24, 0, 0, tzinfo=dt.timezone.utc).astimezone()},
+                    },
+                    "lastError": None,
+                    "lastErrorAt": None,
+                }
+            },
+        )
+
+        account = snapshot["tabs"]["pool"]["accounts"][0]
+        self.assertEqual(account["statusLabel"], "CPA cooldown")
+        self.assertEqual(account["tone"], "warn")
+        self.assertIsNone(account["issueKind"])
+        self.assertTrue(account["cpaCooldown"])
+        self.assertFalse(account["quotaCooldown"])
+        self.assertEqual(account["windows"][0]["valueText"], "100%")
+        self.assertEqual(account["windows"][1]["valueText"], "100%")
+        self.assertIn("Direct quota has recovered", account["note"])
+        self.assertEqual(snapshot["tabs"]["pool"]["summary"], "1 Plus · 0 Non-Plus · 0 healthy · 1 warning · 0 issues")
+        self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][1]["value"], "0")
 
     def test_build_dashboard_snapshot_keeps_non_plus_unknown_until_first_direct_sample(self):
         sampled_at = dt.datetime(2026, 4, 20, 12, 30, tzinfo=dt.timezone.utc).astimezone()

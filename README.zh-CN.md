@@ -8,13 +8,13 @@
 
 ## 你能直接看到什么
 
-- `Pool`：`5h` / `weekly` 已知总容量（以 Plus 为单位展示），其中 Team 按 `1:1` 计入、Prolite 按 `10:1` 计入，其它非 Plus 账号仍可见但不影响总量；账号 weekly 已耗尽时，对总 `5h` 容量贡献为 `0`
-- `Resets`：按从近到远排序展示 `5h` / `weekly` 的 reset 时间，并用紧凑的北京时间显示目标时刻；当 weekly 已耗尽时，`5h` 行会显示真正恢复可用性的 weekly reset
+- `Pool`：`5h` / `weekly` 已知总容量（以 Plus 为单位展示），其中 Team 按 `1:1` 计入、Prolite 按 `10:1` 计入，其它非 Plus 账号仍可见但不影响总量；账号 weekly 已耗尽时，对总 `5h` 容量贡献为 `0`，CPA 侧 auth cooldown 会显示为 warning，不再计入 healthy
+- `Resets`：按从近到远排序展示 `5h` / `weekly` 的 reset 时间，并用紧凑的北京时间显示目标时刻；`Reset scheduled` 只表示 direct Codex quota 仍报告某个 window 已耗尽且有 reset 时间；当 weekly 已耗尽时，`5h` 行会显示真正恢复可用性的 weekly reset
 - `Trends`：展示最近 `6h` 的 SQLite 历史，用来计算 burn rate、预计耗尽时间，并可导入 benchmark 摘要
 - `Usage`：来自 `CLIProxyAPI` usage statistics 的请求/token 总量、小时/日期 bucket、model breakdown 和账号分摊
 - `Audit`：从历史快照 diff 出最近账号池、套餐、状态、quota window 和 benchmark 摘要变化
 - `Diagnostics`：展示 gateway、CPA management API、direct quota sampling、SQLite history 和 benchmark import 的数据源健康状态
-- `Alerts`：只保留硬 auth 故障、没有明确 reset 的硬 quota exhausted、以及 monitor / 数据源降级；有 reset 的 usage-limit cooldown 只留在 `Pool` / `Resets` 展示，不把账号卡片标红
+- `Alerts`：只保留硬 auth 故障、没有明确 reset 的硬 quota exhausted、以及 monitor / 数据源降级；direct `Reset scheduled` window 和 `CPA cooldown` auth-file 状态只留在 `Pool` / `Resets` 展示，不把账号卡片标红
 - `Status`：gateway 连通性，以及当前 CPA 快照/刷新状态
 - `Fast`：当前 CPA fast override 状态（`On`、`Off`、`Inherit` 或 `Unknown`），显示在 Pool 指标里
 - `Theme`：浅色/深色切换；首次跟随浏览器系统主题，手动点击后在当前浏览器记住选择
