@@ -233,7 +233,7 @@ def refresh_alerts_for_stale_snapshot(snapshot):
 
     alerts_tab["summary"] = count_label(alert_count, "alert")
     alerts_tab["metrics"] = [
-        {"label": "Auth", "value": str(counts["auth"]), "detail": "disabled / unavailable / missing auth-file"},
+        {"label": "Auth", "value": str(counts["auth"]), "detail": "disabled / unavailable / invalid auth state"},
         {"label": "Quota", "value": str(counts["quota"]), "detail": "explicit quota exhaustion"},
         {"label": "Monitor", "value": str(counts["monitor"]), "detail": "snapshot or gateway issues"},
         {"label": "Total", "value": str(alert_count), "detail": "items requiring attention"},

@@ -501,7 +501,7 @@ class DashboardSnapshotTests(unittest.TestCase):
         self.assertFalse(any("Runtime" in item["summary"] for item in snapshot["tabs"]["traffic"]["distribution"]))
         self.assertEqual(snapshot["tabs"]["alerts"]["alertCount"], 0)
 
-    def test_build_dashboard_snapshot_keeps_unknown_runtime_slot_without_matching_source(self):
+    def test_build_dashboard_snapshot_keeps_usage_only_source_out_of_pool_alerts_and_recommendations(self):
         snapshot = self.build_minimal_snapshot(
             auth_files=[
                 {
@@ -531,10 +531,23 @@ class DashboardSnapshotTests(unittest.TestCase):
         )
 
         pool_accounts = snapshot["tabs"]["pool"]["accounts"]
-        runtime_account = next(account for account in pool_accounts if account["badge"] == "Runtime")
-        self.assertEqual(runtime_account["title"], "orphan-slot")
-        self.assertEqual(runtime_account["statusLabel"], "Missing auth-file")
-        self.assertEqual(snapshot["tabs"]["alerts"]["metrics"][0]["value"], "1")
+        self.assertEqual([account["title"] for account in pool_accounts], ["known-slot"])
+        self.assertEqual(snapshot["tabs"]["alerts"]["alertCount"], 0)
+
+        traffic_items = snapshot["tabs"]["traffic"]["distribution"]
+        historical_item = next(item for item in traffic_items if item["title"] == "orphan-slot")
+        self.assertEqual(historical_item["tone"], "unknown")
+        self.assertEqual(historical_item["summary"], "History · Historical usage · slot orphan")
+        self.assertNotIn("Missing auth-file", json.dumps(snapshot))
+
+        enhanced = MODULE.enhance_snapshot_with_history(snapshot, history_store=None)
+        self.assertEqual(enhanced["recommendations"]["avoidCount"], 0)
+        recommendation_titles = [
+            item["title"]
+            for group in enhanced["recommendations"]["groups"]
+            for item in group["items"]
+        ]
+        self.assertNotIn("orphan-slot", recommendation_titles)
 
     def test_build_dashboard_snapshot_keeps_multiple_current_slots_with_same_label(self):
         snapshot = self.build_minimal_snapshot(

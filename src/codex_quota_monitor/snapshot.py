@@ -1039,7 +1039,7 @@ def build_auth_context(auth_file, usage_entry, duplicate_labels, reference_time,
     }
 
 
-def build_runtime_context(key, usage_entry, reference_time, usage_totals):
+def build_historical_usage_context(key, usage_entry, reference_time, usage_totals):
     requests = safe_int(usage_entry.get("requests"))
     failed = safe_int(usage_entry.get("failed"))
     tokens = safe_int(usage_entry.get("tokens"))
@@ -1052,16 +1052,16 @@ def build_runtime_context(key, usage_entry, reference_time, usage_totals):
     return {
         "key": key,
         "title": label,
-        "badge": "Runtime",
-        "planKind": "runtime",
-        "tone": "bad",
-        "issueKind": "auth",
-        "statusLabel": "Missing auth-file",
+        "badge": "History",
+        "planKind": "history",
+        "tone": "unknown",
+        "issueKind": None,
+        "statusLabel": "Historical usage",
         "genericQuotaExceeded": False,
-        "summary": f"Missing auth-file · slot {short_slot(key)}",
+        "summary": f"Historical usage · slot {short_slot(key)}",
         "meta": activity_text(recent_timestamp),
         "trafficText": f"{format_count(requests)} req · {format_count(failed)} fail · {format_tokens(tokens)} tok · {share_percent}% share",
-        "note": "Seen in /usage only. The matching auth slot is missing from /auth-files.",
+        "note": "Seen only in CPA usage history; no active auth-file exists for this source.",
         "sharePercent": share_percent,
         "requests": requests,
         "failed": failed,
@@ -1069,6 +1069,7 @@ def build_runtime_context(key, usage_entry, reference_time, usage_totals):
         "recentTimestamp": recent_timestamp,
         "updatedAt": None,
         "directQuotaEligible": False,
+        "poolVisible": False,
         "windows": [
             {
                 "id": definition["id"],
@@ -1130,7 +1131,7 @@ def build_account_contexts(auth_files, usage_index, reference_time, quota_payloa
             continue
         if is_usage_for_current_auth_file(usage_entry, active_identity_keys):
             continue
-        contexts.append(build_runtime_context(key, usage_entry, reference_time, usage_index["totals"]))
+        contexts.append(build_historical_usage_context(key, usage_entry, reference_time, usage_index["totals"]))
 
     contexts.sort(key=lambda item: item["sortKey"])
     for context in contexts:
@@ -1284,6 +1285,7 @@ def build_pool_accounts(contexts):
             "windows": context["windows"],
         }
         for context in contexts
+        if context.get("poolVisible", True)
     ]
 
 
@@ -1704,7 +1706,7 @@ def build_alert_section(items):
         "title": "Intervention Only",
         "summary": "No active alerts." if alert_count == 0 else count_label(alert_count, "alert"),
         "metrics": [
-            {"label": "Auth", "value": str(counts["auth"]), "detail": "disabled / unavailable / missing auth-file"},
+            {"label": "Auth", "value": str(counts["auth"]), "detail": "disabled / unavailable / invalid auth state"},
             {"label": "Quota", "value": str(counts["quota"]), "detail": "explicit quota exhaustion"},
             {"label": "Monitor", "value": str(counts["monitor"]), "detail": "snapshot or gateway issues"},
             {"label": "Total", "value": str(alert_count), "detail": "items requiring attention"},
